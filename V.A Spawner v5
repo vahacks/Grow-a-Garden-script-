@@ -1,0 +1,292 @@
+-- V.A Hackz GUI Script v5
+-- Place under StarterGui as a LocalScript
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ---------- Config ----------
+local DEFAULT_WALKSPEED = 16
+local MIN_SPEED = 0
+local MAX_SPEED = 500
+local SQUARE_SIZE_PX = 420 -- main frame 1:1 square
+local PET_UPDATE_INTERVAL = 0.1
+
+-- ---------- Utilities ----------
+local function clamp(n, a, b) return math.max(a, math.min(b, n)) end
+local function getHumanoid() return player.Character and player.Character:FindFirstChildOfClass("Humanoid") end
+
+-- ---------- Clean previous GUI ----------
+for _, c in ipairs(playerGui:GetChildren()) do
+    if c:IsA("ScreenGui") and c.Name == "V.A Hackz" then
+        pcall(function() c:Destroy() end)
+    end
+end
+
+-- ---------- Main ScreenGui ----------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "V.A Hackz"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- ---------- Main Frame ----------
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, SQUARE_SIZE_PX, 0, SQUARE_SIZE_PX)
+mainFrame.Position = UDim2.new(0.5, -SQUARE_SIZE_PX/2, 0.5, -SQUARE_SIZE_PX/2)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.BorderSizePixel = 2
+
+-- UI Gradient
+local gradient = Instance.new("UIGradient")
+gradient.Rotation = 45
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0,150,0)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0,200,50)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0,150,0))
+}
+gradient.Parent = mainFrame
+
+-- UI Stroke
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(255, 255, 255)
+stroke.Transparency = 0.3
+stroke.Parent = mainFrame
+
+-- Animate gradient
+task.spawn(function()
+    local t = 0
+    while true do
+        task.wait(0.05)
+        t = t + 0.01
+        local r = math.sin(t) * 0.5 + 0.5
+        local g = math.sin(t + math.pi/3) * 0.5 + 0.5
+        local b = math.sin(t + math.pi/1.5) * 0.5 + 0.5
+        gradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 150 + g*50, 0)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 200 + r*30, 50)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 150 + b*50, 0))
+        }
+    end
+end)
+
+-- ---------- Top Bar ----------
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 36)
+topBar.BackgroundTransparency = 0.2
+topBar.BackgroundColor3 = Color3.fromRGB(0,120,0)
+
+local title = Instance.new("TextLabel", topBar)
+title.Size = UDim2.new(1, -36, 1, 0)
+title.Position = UDim2.new(0,8,0,0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextColor3 = Color3.fromRGB(240,240,240)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Text = "V.A Hackz v5"
+
+-- ---------- Close Button ----------
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0,40,0,30)
+closeBtn.Position = UDim2.new(1,-50,0,3)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 16
+closeBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+
+-- ---------- Floating Button ----------
+local floatingBtn = Instance.new("TextButton", screenGui)
+floatingBtn.Size = UDim2.new(0,60,0,60)
+floatingBtn.Position = UDim2.new(0,10,0,100)
+floatingBtn.Text = "V.A"
+floatingBtn.Font = Enum.Font.GothamBold
+floatingBtn.TextSize = 18
+floatingBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+floatingBtn.BorderColor3 = Color3.fromRGB(255,255,255)
+floatingBtn.Visible = false
+floatingBtn.Active = true
+floatingBtn.Draggable = true
+
+-- Hover zoom effect
+local hoverTween, leaveTween
+floatingBtn.MouseEnter:Connect(function()
+    if leaveTween then leaveTween:Cancel() end
+    hoverTween = TweenService:Create(floatingBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0,70,0,70)})
+    hoverTween:Play()
+end)
+floatingBtn.MouseLeave:Connect(function()
+    if hoverTween then hoverTween:Cancel() end
+    leaveTween = TweenService:Create(floatingBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0,60,0,60)})
+    leaveTween:Play()
+end)
+
+-- Tween setup for menu open/close
+local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function tweenTransparency(guiObject, fadeTo)
+    for _, obj in ipairs(guiObject:GetDescendants()) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            TweenService:Create(obj, tweenInfo, {TextTransparency = fadeTo, BackgroundTransparency = fadeTo}):Play()
+        elseif obj:IsA("Frame") then
+            TweenService:Create(obj, tweenInfo, {BackgroundTransparency = fadeTo}):Play()
+        end
+    end
+end
+
+closeBtn.MouseButton1Click:Connect(function()
+    tweenTransparency(mainFrame, 1)
+    local menuGoal = {Position = UDim2.new(0.5, -210, 0.5, -500)}
+    local menuTween = TweenService:Create(mainFrame, tweenInfo, menuGoal)
+    menuTween:Play()
+    
+    floatingBtn.Position = UDim2.new(0, -70, 0, 100)
+    floatingBtn.BackgroundTransparency = 1
+    floatingBtn.TextTransparency = 1
+    floatingBtn.Visible = true
+    local floatGoal = {Position = UDim2.new(0, 10, 0, 100)}
+    local floatTween = TweenService:Create(floatingBtn, tweenInfo, floatGoal)
+    floatTween:Play()
+    TweenService:Create(floatingBtn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+    
+    menuTween.Completed:Connect(function()
+        mainFrame.Visible = false
+        mainFrame.Position = UDim2.new(0.5, -210, 0.5, -230)
+        tweenTransparency(mainFrame, 0)
+    end)
+end)
+
+floatingBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    floatingBtn.Visible = false
+    tweenTransparency(mainFrame, 1)
+    mainFrame.Position = UDim2.new(0.5, -210, 0.5, -500)
+    local menuGoal = {Position = UDim2.new(0.5, -210, 0.5, -230)}
+    local menuTween = TweenService:Create(mainFrame, tweenInfo, menuGoal)
+    menuTween:Play()
+    tweenTransparency(mainFrame, 0)
+end)
+
+-- ---------- Content Container ----------
+local content = Instance.new("Frame", mainFrame)
+content.Size = UDim2.new(1, -20, 1, -60)
+content.Position = UDim2.new(0,10,0,40)
+content.BackgroundTransparency = 1
+
+-- WalkSpeed UI
+local speedLabel = Instance.new("TextLabel", content)
+speedLabel.Size = UDim2.new(1,0,0,20)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Font = Enum.Font.SourceSansBold
+speedLabel.TextSize = 14
+speedLabel.TextColor3 = Color3.fromRGB(230,230,230)
+speedLabel.Text = "Speed: "..tostring(DEFAULT_WALKSPEED)
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local speedBox = Instance.new("TextBox", content)
+speedBox.Size = UDim2.new(1,0,0,32)
+speedBox.Position = UDim2.new(0,0,0,24)
+speedBox.PlaceholderText = tostring(DEFAULT_WALKSPEED)
+speedBox.Font = Enum.Font.SourceSans
+speedBox.TextSize = 16
+speedBox.ClearTextOnFocus = false
+speedBox.Text = ""
+
+local function makeButton(text, pos)
+    local b = Instance.new("TextButton", content)
+    b.Size = UDim2.new(0.45,0,0,36)
+    b.Position = pos
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 14
+    b.Text = text
+    b.BackgroundColor3 = Color3.fromRGB(18,70,18)
+    b.TextColor3 = Color3.fromRGB(1,1,1)
+    return b
+end
+
+local applyBtn = makeButton("Apply", UDim2.new(0,0,0,70))
+local toggleBtn = makeButton("Walk: OFF", UDim2.new(0.55,0,0,70))
+local restoreBtn = makeButton("Restore", UDim2.new(0,0,0,110))
+local infoBtn = makeButton("Info", UDim2.new(0.55,0,0,110))
+
+local statusLabel = Instance.new("TextLabel", content)
+statusLabel.Size = UDim2.new(1,0,0,18)
+statusLabel.Position = UDim2.new(0,0,1,-20)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 12
+statusLabel.TextColor3 = Color3.fromRGB(200,200,200)
+statusLabel.Text = "Developer tool — use in your own game."
+
+-- WalkSpeed logic
+local walkMode = false
+local currentSpeed = DEFAULT_WALKSPEED
+local function applySpeed(speed)
+    local hum = getHumanoid()
+    if hum then hum.WalkSpeed = speed end
+end
+
+applyBtn.MouseButton1Click:Connect(function()
+    local num = tonumber(speedBox.Text) or DEFAULT_WALKSPEED
+    num = clamp(math.floor(num), MIN_SPEED, MAX_SPEED)
+    currentSpeed = num
+    speedLabel.Text = "Speed: "..tostring(currentSpeed)
+    statusLabel.Text = "Applied speed: "..tostring(currentSpeed)
+    if walkMode then applySpeed(currentSpeed) end
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+    walkMode = not walkMode
+    toggleBtn.Text = walkMode and "Walk: ON" or "Walk: OFF"
+    toggleBtn.BackgroundColor3 = walkMode and Color3.fromRGB(0,120,0) or Color3.fromRGB(18,70,18)
+    if walkMode then
+        applySpeed(currentSpeed)
+        statusLabel.Text = "Walk mode enabled."
+    else
+        applySpeed(DEFAULT_WALKSPEED)
+        statusLabel.Text = "Walk mode disabled."
+    end
+end)
+
+restoreBtn.MouseButton1Click:Connect(function()
+    currentSpeed = DEFAULT_WALKSPEED
+    speedBox.Text = ""
+    speedBox.PlaceholderText = tostring(DEFAULT_WALKSPEED)
+    speedLabel.Text = "Speed: "..tostring(DEFAULT_WALKSPEED)
+    applySpeed(DEFAULT_WALKSPEED)
+    statusLabel.Text = "Restored defaults."
+end)
+
+infoBtn.MouseButton1Click:Connect(function()
+    statusLabel.Text = "Min: "..MIN_SPEED.." | Max: "..MAX_SPEED.." | Default: "..DEFAULT_WALKSPEED
+end)
+
+-- Reapply WalkSpeed on respawn
+player.CharacterAdded:Connect(function()
+    task.wait(0.6)
+    if walkMode then applySpeed(currentSpeed) else applySpeed(DEFAULT_WALKSPEED) end
+end)
+
+-- ---------- External Script Loader ----------
+local function appendLog(msg)
+    statusLabel.Text = msg
+end
+
+local loadPetBtn = makeButton("Load Pet Spawner GAG", UDim2.new(0,0,0,150))
+loadPetBtn.MouseButton1Click:Connect(function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Kizaki143/Pet-SpawnerGAG/refs/heads/main/OPScriptGAG"))()
+    end)
+    if ok then
+        appendLog("Pet Spawner GAG loaded successfully!")
+    else
+        appendLog("Failed to load Pet Spawner GAG: "..tostring(err))
+    end
+end)
+
+print("V.A Hackz GUI v5 loaded.")
