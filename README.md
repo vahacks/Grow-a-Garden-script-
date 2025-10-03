@@ -1,1 +1,498 @@
-# Grow-a-Garden-script-
+# Grow-a-Garden-script--- V.A Hackz — FULL Script (LocalScript -> StarterGui)
+-- Features:
+--  - Real pet spawning (clones pet models from ReplicatedStorage if available; fallback to parts)
+--  - Giftable pet spawner using server RemoteEvent (best-effort with multiple param shapes)
+--  - Seeds / Grow plant local
+--  - Pet type selector (Kitsune, Raccoon, Ostrich + fallback)
+--  - Anti-lag (throttled updates) and basic anti-ban protections (pcall + randomized delays)
+--  - Movement toggles (Speed / Jump / Fly) with safe restore
+--  - Dynamic liquid-shimmer background, button glow, floating button, tweens, hover effects
+-- WARNING: For gifting to actually give pets to other players the GAME must have a server RemoteEvent that spawns pets server-side.
+-- Place this LocalScript in StarterGui. Review & test on an executor that supports required features.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ---------------- Utilities ----------------
+local function safeDestroy(obj)
+    if obj and obj.Destroy then
+        pcall(function() obj:Destroy() end)
+    end
+end
+
+local function getHumanoid()
+    return player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+end
+
+local function getHRP()
+    return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function storeOriginalHumanoidValues(hum)
+    if not hum then return end
+    if not hum:FindFirstChild("_VA_OrigWS") then
+        local ws = Instance.new("NumberValue")
+        ws.Name = "_VA_OrigWS"
+        ws.Value = hum.WalkSpeed or 16
+        ws.Parent = hum
+    end
+    if not hum:FindFirstChild("_VA_OrigJP") and hum.JumpPower ~= nil then
+        local jp = Instance.new("NumberValue")
+        jp.Name = "_VA_OrigJP"
+        jp.Value = hum.JumpPower or 50
+        jp.Parent = hum
+    end
+end
+
+local function restoreHumanoidValues(hum)
+    if not hum then return end
+    local ws = hum:FindFirstChild("_VA_OrigWS")
+    if ws and typeof(ws.Value) == "number" then
+        pcall(function() hum.WalkSpeed = ws.Value end)
+        pcall(function() ws:Destroy() end)
+    else
+        pcall(function() hum.WalkSpeed = 16 end)
+    end
+    local jp = hum:FindFirstChild("_VA_OrigJP")
+    if jp and typeof(jp.Value) == "number" then
+        pcall(function() hum.JumpPower = jp.Value end)
+        pcall(function() jp:Destroy() end)
+    else
+        pcall(function() if hum.JumpPower then hum.JumpPower = 50 end end)
+    end
+end
+
+-- ---------------- State & Folders ----------------
+local STATE = {
+    scriptEnabled = true,
+    autoGrow = false,
+    flyEnabled = false,
+    speedEnabled = false,
+    jumpEnabled = false,
+    pets = {}, -- { model = Model, primary = BasePart, bp = BodyPosition, type = string }
+    selectedPet = "Kitsune",
+    petUpdateInterval = 0.12, -- seconds (anti-lag)
+    antiBanCooldown = false,
+}
+
+local GARDEN_FOLDER = workspace:FindFirstChild("Plants") or (function() local f = Instance.new("Folder",workspace); f.Name = "Plants"; return f end)()
+local PETS_FOLDER = workspace:FindFirstChild("Pets") or (function() local f = Instance.new("Folder",workspace); f.Name = "Pets"; return f end)()
+
+-- candidate pet model locations in ReplicatedStorage
+local PET_MODEL_FOLDERS = {
+    "PetModels", "Pets", "GardenPets", "PetTemplates", "Assets/Pets"
+}
+
+local function findPetModel(name)
+    -- search common places in ReplicatedStorage
+    for _, loc in ipairs(PET_MODEL_FOLDERS) do
+        local place = ReplicatedStorage:FindFirstChild(loc)
+        if place and place:IsA("Folder") then
+            local template = place:FindFirstChild(name)
+            if template then return template end
+        end
+    end
+    -- fallback: direct child
+    local direct = ReplicatedStorage:FindFirstChild(name)
+    if direct then return direct end
+    return nil
+end
+
+-- ---------------- Cleanup existing GUIs ----------------
+for _, c in ipairs(playerGui:GetChildren()) do
+    if type(c.Name) == "string" and c.Name:match("^V%.A Hackz") then
+        safeDestroy(c)
+    end
+end
+
+-- ---------------- Safe remote firing (anti-ban) ----------------
+local candidateRemoteNames = {"VA_SpawnPet", "SpawnPet", "PetSpawner", "RemotePetEvent", "GivePet", "SpawnRemotePet", "VA_GiftPet"}
+local function findServerRemote()
+    for _, nm in ipairs(candidateRemoteNames) do
+        local ev = ReplicatedStorage:FindFirstChild(nm)
+        if ev and ev:IsA("RemoteEvent") then
+            return ev, nm
+        end
+    end
+    -- check any RemoteEvent in ReplicatedStorage (last resort)
+    for _, obj in ipairs(ReplicatedStorage:GetChildren()) do
+        if obj:IsA("RemoteEvent") then return obj, obj.Name end
+    end
+    return nil, nil
+end
+
+local function safeFireRemote(remote, ...)
+    -- anti-ban: randomized small delay + pcall + simple backoff
+    if STATE.antiBanCooldown then return false, "cooldown" end
+    STATE.antiBanCooldown = true
+    task.spawn(function()
+        task.wait(math.random(8,15)/10) -- 0.8 - 1.5s
+        STATE.antiBanCooldown = false
+    end)
+    local ok, err = pcall(function() remote:FireServer(...) end)
+    return ok, err
+end
+
+-- ---------------- Pet spawning (real if available) ----------------
+local AVAILABLE_PETS = {"Kitsune", "Raccoon", "Ostrich"}
+
+local function spawnRealPetModel(petName)
+    if not STATE.scriptEnabled then return nil, "disabled" end
+    local hrp = getHRP()
+    if not hrp then return nil, "no_character" end
+
+    local template = findPetModel(petName)
+    if not template then
+        return nil, "no_template"
+    end
+
+    local ok, model = pcall(function() return template:Clone() end)
+    if not ok or not model then
+        return nil, "clone_failed"
+    end
+
+    model.Parent = PETS_FOLDER
+    -- attempt to set PrimaryPart
+    local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+    if primary then
+        -- position near player
+        pcall(function() model:SetPrimaryPartCFrame(hrp.CFrame * CFrame.new(math.random(-4,4), 0, math.random(5,10))) end)
+        -- attach a BodyPosition to the primary for following
+        local bp = Instance.new("BodyPosition")
+        bp.Name = "_VA_BP"
+        bp.MaxForce = Vector3.new(1e6,1e6,1e6)
+        bp.P = 6000
+        bp.D = 200
+        bp.Position = primary.Position
+        bp.Parent = primary
+        table.insert(STATE.pets, { model = model, primary = primary, bp = bp, type = petName })
+        return model, "ok"
+    else
+        -- no primary; clean up and fail
+        safeDestroy(model)
+        return nil, "no_primary"
+    end
+end
+
+local function spawnFallbackPartPet(petName)
+    -- fallback simple Part pet (visible, but not animated)
+    local hrp = getHRP()
+    if not hrp then return nil, "no_hrp" end
+    local part = Instance.new("Part")
+    part.Name = "VA_Pet_"..petName
+    part.Size = Vector3.new(4,4,4)
+    part.Position = hrp.Position + Vector3.new(math.random(-4,4),0,math.random(5,10))
+    part.Anchored = false
+    part.CanCollide = true
+    if petName == "Kitsune" then part.BrickColor = BrickColor.new("Bright orange")
+    elseif petName == "Raccoon" then part.BrickColor = BrickColor.new("Really black")
+    elseif petName == "Ostrich" then part.BrickColor = BrickColor.new("Institutional white")
+    else part.BrickColor = BrickColor.new("Medium stone grey") end
+    part.Parent = PETS_FOLDER
+
+    local bp = Instance.new("BodyPosition", part)
+    bp.Name = "_VA_BP"
+    bp.MaxForce = Vector3.new(1e6,1e6,1e6)
+    bp.P = 6000
+    bp.D = 200
+    bp.Position = part.Position
+
+    table.insert(STATE.pets, { model = nil, primary = part, bp = bp, type = petName })
+    return part, "fallback"
+end
+
+local function spawnPet(petName)
+    if not STATE.scriptEnabled then return nil, "disabled" end
+    petName = petName or STATE.selectedPet or "Kitsune"
+    local model, status = spawnRealPetModel(petName)
+    if model then return model, "real" end
+    -- fallback to simple part-based pet
+    local part, st2 = spawnFallbackPartPet(petName)
+    if part then return part, "fallback" end
+    return nil, "failed"
+end
+
+-- ---------------- Pet follow/update loop (throttled) ----------------
+task.spawn(function()
+    while true do
+        local interval = math.max(0.05, STATE.petUpdateInterval or 0.12)
+        task.wait(interval)
+        if not STATE.scriptEnabled then continue end
+        local hrp = getHRP()
+        if not hrp then continue end
+        -- iterate backwards for safe removal
+        for i = #STATE.pets, 1, -1 do
+            local ent = STATE.pets[i]
+            if not ent.primary or not ent.primary.Parent then
+                table.remove(STATE.pets, i)
+            else
+                -- compute sensible target with slight smoothing/randomness
+                local ox = math.random(-5,5)
+                local oz = math.random(-5,5)
+                local target = hrp.Position + Vector3.new(ox, 2 + math.random(), oz)
+                pcall(function() if ent.bp and ent.bp.Parent then ent.bp.Position = target end end)
+            end
+        end
+    end
+end)
+
+-- ---------------- Movement modifications (safe) ----------------
+local function applySpeed(on)
+    local hum = getHumanoid()
+    if not hum then return end
+    if on then
+        storeOriginalHumanoidValues(hum)
+        pcall(function() hum.WalkSpeed = 100 end)
+    else
+        restoreHumanoidValues(hum)
+    end
+end
+
+local function applyJump(on)
+    local hum = getHumanoid()
+    if not hum then return end
+    if on then
+        storeOriginalHumanoidValues(hum)
+        pcall(function() hum.JumpPower = 200 end)
+    else
+        restoreHumanoidValues(hum)
+    end
+end
+
+-- fly (safer minimal implementation)
+local flyObjects = { bv = nil, bg = nil, conn = nil }
+local flySpeed = 120
+local function enableFly()
+    if flyObjects.bv then return end
+    local hrp = getHRP()
+    if not hrp then return end
+    local hum = getHumanoid() if hum then pcall(function() hum.PlatformStand = true end) end
+    flyObjects.bv = Instance.new("BodyVelocity"); flyObjects.bv.MaxForce = Vector3.new(9e5,9e5,9e5); flyObjects.bv.P = 1250; flyObjects.bv.Velocity = Vector3.new(0,0,0); flyObjects.bv.Parent = hrp
+    flyObjects.bg = Instance.new("BodyGyro"); flyObjects.bg.MaxTorque = Vector3.new(9e5,9e5,9e5); flyObjects.bg.P = 1250; flyObjects.bg.Parent = hrp
+    flyObjects.conn = RunService.RenderStepped:Connect(function()
+        if not hrp.Parent then return end
+        local cam = workspace.CurrentCamera
+        local look, right = cam.CFrame.LookVector, cam.CFrame.RightVector
+        local mv = Vector3.new(0,0,0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then mv = mv + Vector3.new(look.X,0,look.Z) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then mv = mv - Vector3.new(look.X,0,look.Z) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then mv = mv - Vector3.new(right.X,0,right.Z) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then mv = mv + Vector3.new(right.X,0,right.Z) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then mv = mv - Vector3.new(0,1,0) end
+        local vel = (mv.Magnitude > 0) and mv.Unit * flySpeed or Vector3.new(0,0,0)
+        pcall(function() flyObjects.bv.Velocity = vel end)
+        pcall(function() flyObjects.bg.CFrame = CFrame.new(hrp.Position, hrp.Position + Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)) end)
+    end)
+end
+
+local function disableFly()
+    if flyObjects.conn then pcall(function() flyObjects.conn:Disconnect() end) end
+    if flyObjects.bv and flyObjects.bv.Parent then pcall(function() flyObjects.bv:Destroy() end) end
+    if flyObjects.bg and flyObjects.bg.Parent then pcall(function() flyObjects.bg:Destroy() end) end
+    flyObjects.bv, flyObjects.bg, flyObjects.conn = nil, nil, nil
+    local hum = getHumanoid(); if hum then pcall(function() hum.PlatformStand = false end) end
+end
+
+-- ---------------- GUI BUILD ----------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "V.A Hackz"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "Main"
+mainFrame.Size = UDim2.new(0,460,0,540)
+mainFrame.Position = UDim2.new(0.5, -230, 0.5, -270)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30,130,30)
+mainFrame.BorderColor3 = Color3.fromRGB(255,255,255)
+mainFrame.BorderSizePixel = 2
+mainFrame.AnchorPoint = Vector2.new(0.5,0.5)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1,0,0,56)
+topBar.Position = UDim2.new(0,0,0,0)
+topBar.BackgroundColor3 = Color3.fromRGB(18,90,18)
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(0.7,0,1,0); titleLabel.Position = UDim2.new(0,12,0,0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Font = Enum.Font.GothamBold; titleLabel.TextSize = 20; titleLabel.TextColor3 = Color3.new(1,1,1)
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Text = "V.A Hackz — Real Pets + Gift"
+
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0,42,0,34)
+closeBtn.Position = UDim2.new(1,-54,0,10)
+closeBtn.Text = "X"; closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16
+closeBtn.BackgroundColor3 = Color3.fromRGB(160,20,20); closeBtn.TextColor3 = Color3.fromRGB(1,1,1)
+
+local toggleBtn = Instance.new("TextButton", topBar)
+toggleBtn.Size = UDim2.new(0,100,0,34)
+toggleBtn.Position = UDim2.new(1,-168,0,10)
+toggleBtn.Text = "Hide GUI"; toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 14
+toggleBtn.BackgroundColor3 = Color3.fromRGB(6,90,6); toggleBtn.TextColor3 = Color3.fromRGB(1,1,1)
+
+-- floating button
+local floatingBtn = Instance.new("TextButton", screenGui)
+floatingBtn.Size = UDim2.new(0,66,0,66)
+floatingBtn.Position = UDim2.new(0,14,0,120)
+floatingBtn.Text = "V.A"
+floatingBtn.Font = Enum.Font.GothamBold; floatingBtn.TextSize = 20
+floatingBtn.BackgroundColor3 = Color3.fromRGB(12,120,12); floatingBtn.BorderSizePixel = 1
+floatingBtn.Visible = false; floatingBtn.Active = true; floatingBtn.Draggable = true
+
+-- scrolling area
+local scroll = Instance.new("ScrollingFrame", mainFrame)
+scroll.Size = UDim2.new(1,-24,1,-86)
+scroll.Position = UDim2.new(0,12,0,66)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 10
+local listLayout = Instance.new("UIListLayout", scroll); listLayout.Padding = UDim.new(0,10); listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local TweenShort = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- dynamic background function (applies to frames)
+local function applyDynamicBackground(frame)
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = 0
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20,110,20)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30,170,60)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20,110,20))
+    }
+    gradient.Parent = frame
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.new(1,1,1)
+    stroke.Transparency = 0.25
+    stroke.Parent = frame
+
+    task.spawn(function()
+        while frame.Parent do
+            local targetRotation = math.random(0,360)
+            local tw = TweenService:Create(gradient, TweenInfo.new(3 + math.random(), Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = targetRotation})
+            tw:Play(); tw.Completed:Wait()
+        end
+    end)
+
+    task.spawn(function()
+        local t = 0
+        while frame.Parent do
+            task.wait(0.05)
+            t = t + 0.002
+            gradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromHSV((t)%1, 0.6, 0.8)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromHSV((t+0.33)%1, 0.7, 0.9)),
+                ColorSequenceKeypoint.new(1, Color3.fromHSV((t+0.66)%1, 0.6, 0.8))
+            }
+        end
+    end)
+end
+
+applyDynamicBackground(mainFrame)
+applyDynamicBackground(topBar)
+applyDynamicBackground(floatingBtn)
+
+-- create button helper with glow + hover
+local function createButton(text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1,0,0,40)
+    btn.Font = Enum.Font.GothamBold; btn.TextSize = 16
+    btn.BackgroundColor3 = Color3.fromRGB(10,110,10)
+    btn.BorderSizePixel = 1
+    btn.TextColor3 = Color3.fromRGB(1,1,1)
+    btn.Text = text
+    btn.Parent = scroll
+
+    -- gradient glow on button
+    local g = Instance.new("UIGradient")
+    g.Rotation = 0
+    g.Color = ColorSequence.new{ ColorSequenceKeypoint.new(0, Color3.fromRGB(0,120,0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,180,0)) }
+    g.Parent = btn
+    task.spawn(function()
+        while btn.Parent do
+            local r = math.random(0,360)
+            local tw = TweenService:Create(g, TweenInfo.new(2 + math.random(), Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Rotation = r})
+            tw:Play(); tw.Completed:Wait()
+        end
+    end)
+
+    btn.MouseEnter:Connect(function()
+        pcall(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(0,170,0)}):Play() end)
+    end)
+    btn.MouseLeave:Connect(function()
+        pcall(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(10,110,10)}):Play() end)
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        pcall(function() callback(btn) end)
+    end)
+
+    return btn
+end
+
+-- ---------------- Buttons / Controls ----------------
+createButton("Grow Plant (Local)", function() growPlant() end)
+
+local autoBtn = createButton("Auto Grow: OFF", function(btn)
+    STATE.autoGrow = not STATE.autoGrow
+    btn.Text = STATE.autoGrow and "Auto Grow: ON" or "Auto Grow: OFF"
+end)
+
+createButton("Spawn Selected Pet (Real if available)", function() spawnPet(STATE.selectedPet) end)
+
+-- pet type selector (cycles)
+local petSelectorBtn = createButton("Pet Type: Kitsune", function(btn)
+    -- cycle through AVAILABLE_PETS
+    local idx = 1
+    for i, v in ipairs(AVAILABLE_PETS) do
+        if v == STATE.selectedPet then idx = i; break end
+    end
+    idx = (idx % #AVAILABLE_PETS) + 1
+    STATE.selectedPet = AVAILABLE_PETS[idx]
+    btn.Text = "Pet Type: "..STATE.selectedPet
+end)
+
+createButton("Spawn Kitsune (Local)", function() spawnPet("Kitsune") end)
+createButton("Spawn Raccoon (Local)", function() spawnPet("Raccoon") end)
+createButton("Spawn Ostrich (Local)", function() spawnPet("Ostrich") end)
+
+createButton("Delete All Pets (Local)", function()
+    for i = #STATE.pets, 1, -1 do
+        local e = STATE.pets[i]
+        if e.model and e.model.Parent then safeDestroy(e.model) end
+        if e.primary and e.primary.Parent and e.primary:IsA("BasePart") and e.primary.Parent == PETS_FOLDER then safeDestroy(e.primary) end
+        if e.bp and e.bp.Parent then safeDestroy(e.bp) end
+        table.remove(STATE.pets, i)
+    end
+end)
+
+local speedBtn = createButton("Speed Hack: OFF", function(btn)
+    STATE.speedEnabled = not STATE.speedEnabled
+    btn.Text = STATE.speedEnabled and "Speed Hack: ON" or "Speed Hack: OFF"
+    applySpeed(STATE.speedEnabled)
+end)
+
+local jumpBtn = createButton("Jump Hack: OFF", function(btn)
+    STATE.jumpEnabled = not STATE.jumpEnabled
+    btn.Text = STATE.jumpEnabled and "Jump Hack: ON" or "Jump Hack: OFF"
+    applyJump(STATE.jumpEnabled)
+end)
+
+local flyBtn = createButton("Fly Hack: OFF", function(btn)
+    STATE.flyEnabled = not STATE.flyEnabled
+    btn.Text = STATE.flyEnabled and "Fly Hack: ON" or "Fly Hack: OFF"
+    if STATE.flyEnabled then enableFly() else disableFly() end
+end)
+
+createButton("Restore Movement Defaults", function()
+    local hum = getHu
