@@ -1,0 +1,260 @@
+-- John Karl Script by V.A Hacks (Optimized & Error-Free)
+
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- Player & Character
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local originalSpeed = humanoid.WalkSpeed
+
+-- Settings
+local SPEED_MULTIPLIER = 99999
+local AUTO_RACE_SPEED = 20000
+local AUTO_TRAIN_SPEED = 9999
+local ENTER_KEY = Enum.KeyCode.Return
+local PALDO_KEY = Enum.KeyCode.P
+
+-- States
+local boostEnabled = true
+local menuOpen = true
+local autoRaceEnabled = false
+local autoTrainEnabled = false
+
+-- GUI
+local playerGui = player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "VABoostGui"
+screenGui.Parent = playerGui
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 350, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -175, 0, 20)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 50, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 20)
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 5)
+title.BackgroundTransparency = 1
+title.TextScaled = true
+title.Text = "John Karl Script by V.A Hacks"
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+-- Multiplier Label
+local multiplierLabel = Instance.new("TextLabel")
+multiplierLabel.Size = UDim2.new(1, -20, 0, 25)
+multiplierLabel.Position = UDim2.new(0, 10, 0, 40)
+multiplierLabel.BackgroundTransparency = 1
+multiplierLabel.TextScaled = true
+multiplierLabel.Text = "Speed x"..SPEED_MULTIPLIER
+multiplierLabel.TextColor3 = Color3.fromRGB(255,215,0)
+multiplierLabel.Font = Enum.Font.GothamBlack
+multiplierLabel.Parent = mainFrame
+
+-- Status Label
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 25)
+status.Position = UDim2.new(0, 10, 0, 70)
+status.BackgroundTransparency = 1
+status.TextScaled = true
+status.TextColor3 = Color3.fromRGB(255,255,255)
+status.Font = Enum.Font.GothamSemibold
+status.Parent = mainFrame
+
+-- Enable / Disable Boost Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 120, 0, 30)
+toggleButton.Position = UDim2.new(0.5, -60, 0, 100)
+toggleButton.AnchorPoint = Vector2.new(0.5, 0)
+toggleButton.Text = "Disable Boost"
+toggleButton.TextScaled = true
+toggleButton.BackgroundColor3 = Color3.fromRGB(255,140,0)
+toggleButton.TextColor3 = Color3.fromRGB(255,255,255)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = mainFrame
+
+-- Auto Race Label & Button
+local autoRaceLabel = Instance.new("TextLabel")
+autoRaceLabel.Size = UDim2.new(1, -20, 0, 25)
+autoRaceLabel.Position = UDim2.new(0, 10, 0, 140)
+autoRaceLabel.BackgroundTransparency = 1
+autoRaceLabel.TextScaled = true
+autoRaceLabel.TextColor3 = Color3.fromRGB(255,215,0)
+autoRaceLabel.Text = "Auto Race Speed: x"..AUTO_RACE_SPEED
+autoRaceLabel.Font = Enum.Font.GothamBold
+autoRaceLabel.Parent = mainFrame
+
+local autoRaceBtn = Instance.new("TextButton")
+autoRaceBtn.Size = UDim2.new(0, 120, 0, 30)
+autoRaceBtn.Position = UDim2.new(0.5, -60, 0, 170)
+autoRaceBtn.Text = "Enable Race"
+autoRaceBtn.TextScaled = true
+autoRaceBtn.BackgroundColor3 = Color3.fromRGB(255,140,0)
+autoRaceBtn.TextColor3 = Color3.fromRGB(255,255,255)
+autoRaceBtn.Font = Enum.Font.GothamBold
+autoRaceBtn.Parent = mainFrame
+
+-- Auto Train Label & Button
+local autoTrainLabel = Instance.new("TextLabel")
+autoTrainLabel.Size = UDim2.new(1, -20, 0, 25)
+autoTrainLabel.Position = UDim2.new(0, 10, 0, 210)
+autoTrainLabel.BackgroundTransparency = 1
+autoTrainLabel.TextScaled = true
+autoTrainLabel.TextColor3 = Color3.fromRGB(255,215,0)
+autoTrainLabel.Text = "Auto Train Speed: x"..AUTO_TRAIN_SPEED
+autoTrainLabel.Font = Enum.Font.GothamBold
+autoTrainLabel.Parent = mainFrame
+
+local autoTrainBtn = Instance.new("TextButton")
+autoTrainBtn.Size = UDim2.new(0, 120, 0, 30)
+autoTrainBtn.Position = UDim2.new(0.5, -60, 0, 240)
+autoTrainBtn.Text = "Enable Train"
+autoTrainBtn.TextScaled = true
+autoTrainBtn.BackgroundColor3 = Color3.fromRGB(255,140,0)
+autoTrainBtn.TextColor3 = Color3.fromRGB(255,255,255)
+autoTrainBtn.Font = Enum.Font.GothamBold
+autoTrainBtn.Parent = mainFrame
+
+-- Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.TextScaled = true
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = mainFrame
+
+-- Mini Button (Compact Floating)
+local miniButton = Instance.new("TextButton")
+miniButton.Size = UDim2.new(0, 120, 0, 25)
+miniButton.Position = UDim2.new(0, 10, 0, 20)
+miniButton.BackgroundColor3 = Color3.fromRGB(30,90,30)
+miniButton.TextColor3 = Color3.fromRGB(255,255,255)
+miniButton.Text = "John Karl Script"
+miniButton.TextScaled = true
+miniButton.Font = Enum.Font.GothamBold
+miniButton.Parent = screenGui
+miniButton.Visible = false
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 15)
+corner.Parent = miniButton
+
+-- FUNCTIONS
+local function EnableBoost()
+    boostEnabled = true
+    toggleButton.Text = "Disable Boost"
+    humanoid.WalkSpeed = originalSpeed * SPEED_MULTIPLIER
+    status.Text = "Boost Enabled"
+end
+
+local function DisableBoost()
+    boostEnabled = false
+    toggleButton.Text = "Enable Boost"
+    humanoid.WalkSpeed = originalSpeed
+    status.Text = "Boost Disabled"
+end
+
+local function SlideMenu(open)
+    local goal
+    if open then
+        mainFrame.Visible = true
+        goal = {Position = UDim2.new(0.5, -175, 0, 20)}
+    else
+        goal = {Position = UDim2.new(0.5, -175, 0, -300)}
+    end
+    local tween = TweenService:Create(mainFrame, TweenInfo.new(0.5), goal)
+    tween:Play()
+    if not open then
+        tween.Completed:Connect(function() mainFrame.Visible = false end)
+    end
+end
+
+local function FadeMiniButton(show)
+    miniButton.Visible = true
+    local goal = {
+        BackgroundTransparency = show and 0 or 0.7,
+        TextTransparency = show and 0 or 0.5
+    }
+    local tween = TweenService:Create(miniButton, TweenInfo.new(0.5), goal)
+    tween:Play()
+end
+
+local function ToggleMenu()
+    menuOpen = not menuOpen
+    if menuOpen then
+        FadeMiniButton(false)
+        SlideMenu(true)
+    else
+        SlideMenu(false)
+        FadeMiniButton(true)
+    end
+end
+
+-- BUTTON EVENTS
+toggleButton.MouseButton1Click:Connect(function()
+    if boostEnabled then
+        DisableBoost()
+    else
+        EnableBoost()
+    end
+end)
+
+autoRaceBtn.MouseButton1Click:Connect(function()
+    autoRaceEnabled = not autoRaceEnabled
+    autoRaceBtn.Text = autoRaceEnabled and "Disable Race" or "Enable Race"
+end)
+
+autoTrainBtn.MouseButton1Click:Connect(function()
+    autoTrainEnabled = not autoTrainEnabled
+    autoTrainBtn.Text = autoTrainEnabled and "Disable Train" or "Enable Train"
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    ToggleMenu()
+end)
+
+miniButton.MouseButton1Click:Connect(function()
+    ToggleMenu()
+end)
+
+-- KEYBINDS
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == ENTER_KEY then
+        ToggleMenu()
+    elseif input.KeyCode == PALDO_KEY then
+        if boostEnabled then
+            DisableBoost()
+        else
+            EnableBoost()
+        end
+    end
+end)
+
+-- OPTIMIZED LOOP
+RunService.RenderStepped:Connect(function()
+    if boostEnabled then
+        humanoid.WalkSpeed = originalSpeed * SPEED_MULTIPLIER
+    end
+    if autoRaceEnabled then
+        -- implement auto race logic here
+    end
+    if autoTrainEnabled then
+        -- implement auto train logic here
+    end
+end)
