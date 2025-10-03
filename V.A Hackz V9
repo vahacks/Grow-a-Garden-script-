@@ -1,0 +1,204 @@
+-- ================= V.A Hackz v9 (Krnl-Ready Visual GUI) =================
+-- Place as LocalScript, execute in Krnl executor
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ---------------- Clean previous GUI ----------------
+for _, c in ipairs(playerGui:GetChildren()) do
+    if c:IsA("ScreenGui") and c.Name:match("^V%.A Hackz") then
+        pcall(function() c:Destroy() end)
+    end
+end
+
+-- ---------------- Core State ----------------
+local STATE = {
+    scriptEnabled = true,
+    jumpHack = false,
+    walkHack = false,
+    autoGrow = false,
+    pets = {},
+    maxPets = 30
+}
+
+local function getHumanoid() return player.Character and player.Character:FindFirstChildOfClass("Humanoid") end
+local function getHRP() return player.Character and player.Character:FindFirstChild("HumanoidRootPart") end
+
+-- ---------------- GUI ----------------
+local screenGui = Instance.new("ScreenGui", playerGui)
+screenGui.Name = "V.A Hackz"
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0,420,0,520)
+mainFrame.Position = UDim2.new(0.5,-210,0.5,-260)
+mainFrame.AnchorPoint = Vector2.new(0.5,0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20,120,20)
+mainFrame.BorderSizePixel = 2
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+-- Top Bar
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1,0,0,50)
+topBar.BackgroundColor3 = Color3.fromRGB(10,80,10)
+
+local title = Instance.new("TextLabel", topBar)
+title.Size = UDim2.new(0.7,0,1,0)
+title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.new(1,1,1)
+title.Text = "V.A Hackz v9"
+
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0,40,0,30)
+closeBtn.Position = UDim2.new(1,-50,0,10)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 16
+closeBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+closeBtn.TextColor3 = Color3.new(1,1,1)
+
+-- Floating Button
+local floatingBtn = Instance.new("TextButton", screenGui)
+floatingBtn.Size = UDim2.new(0,60,0,60)
+floatingBtn.Position = UDim2.new(0,10,0,100)
+floatingBtn.Text = "V.A"
+floatingBtn.Font = Enum.Font.GothamBold
+floatingBtn.TextSize = 18
+floatingBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+floatingBtn.BorderSizePixel = 1
+floatingBtn.Visible = false
+floatingBtn.Active = true
+floatingBtn.Draggable = true
+
+-- Scrolling frame
+local scroll = Instance.new("ScrollingFrame", mainFrame)
+scroll.Size = UDim2.new(1,-20,1,-70)
+scroll.Position = UDim2.new(0,10,0,60)
+scroll.ScrollBarThickness = 8
+scroll.BackgroundTransparency = 1
+local layout = Instance.new("UIListLayout", scroll)
+layout.Padding = UDim.new(0,10)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scroll.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 20)
+end)
+
+-- Button creator
+local function createButton(text, parent, callback)
+    local btn = Instance.new("TextButton", parent or scroll)
+    btn.Size = UDim2.new(1,0,0,38)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.BackgroundColor3 = Color3.fromRGB(0,110,0)
+    btn.TextColor3 = Color3.fromRGB(1,1,1)
+    btn.Text = text
+    btn.BorderSizePixel = 1
+    btn.MouseButton1Click:Connect(function() pcall(callback) end)
+    return btn
+end
+
+-- ---------------- Features ----------------
+-- Jump Hack 9999x
+createButton("Toggle Jump Hack (9999x)", scroll, function()
+    STATE.jumpHack = not STATE.jumpHack
+    local hum = getHumanoid()
+    if hum then
+        hum.JumpPower = STATE.jumpHack and 9999 or 50
+    end
+end)
+
+-- Walk Hack 500x
+createButton("Toggle WalkSpeed Hack (500x)", scroll, function()
+    STATE.walkHack = not STATE.walkHack
+    local hum = getHumanoid()
+    if hum then
+        hum.WalkSpeed = STATE.walkHack and 500 or 16
+    end
+end)
+
+-- Steal placeholder
+local stealLabel = Instance.new("TextLabel", scroll)
+stealLabel.Size = UDim2.new(1,0,0,24)
+stealLabel.BackgroundTransparency = 1
+stealLabel.Font = Enum.Font.GothamBold
+stealLabel.TextSize = 15
+stealLabel.TextColor3 = Color3.fromRGB(240,240,240)
+stealLabel.Text = "🔓 Steal Pets / Coins (Demo)"
+
+local stealBox = Instance.new("TextBox", scroll)
+stealBox.Size = UDim2.new(1,0,0,32)
+stealBox.PlaceholderText = "Enter target username"
+stealBox.Font = Enum.Font.Gotham
+stealBox.TextSize = 14
+stealBox.BackgroundColor3 = Color3.fromRGB(15,85,15)
+stealBox.TextColor3 = Color3.fromRGB(1,1,1)
+
+createButton("Steal (Demo Only)", scroll, function()
+    print("Steal feature is local/demo. Target:", stealBox.Text)
+end)
+
+-- Auto Glitch / Auto Grow (demo)
+createButton("Auto Glitch / Auto Grow", scroll, function()
+    STATE.autoGrow = not STATE.autoGrow
+    print("Auto Grow enabled:", STATE.autoGrow)
+end)
+
+-- Remote Spawner loadstring
+createButton("Load Remote Spawner v5", scroll, function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/vahacks/Grow-a-Garden-script-/refs/heads/main/V.A%20Spawner%20v5"))()
+    end)
+    print("Remote Spawner executed:", ok, err)
+end)
+
+-- ---------------- Floating button behavior ----------------
+closeBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    floatingBtn.Visible = true
+end)
+
+floatingBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    floatingBtn.Visible = false
+end)
+
+-- ---------------- Pet update loop ----------------
+RunService.Heartbeat:Connect(function()
+    if STATE.scriptEnabled then
+        local hrp = getHRP()
+        if hrp then
+            for _, pet in ipairs(STATE.pets) do
+                pcall(function() pet.Position = hrp.Position + Vector3.new(math.random(-5,5),3,math.random(-5,5)) end)
+            end
+        end
+    end
+end)
+
+-- ---------------- Auto Grow demo ----------------
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if STATE.autoGrow then
+            local hrp = getHRP()
+            if hrp then
+                local p = Instance.new("Part")
+                p.Size = Vector3.new(0.5,0.5,0.5)
+                p.Anchored = true
+                p.CanCollide = false
+                p.BrickColor = BrickColor.new("Lime green")
+                p.CFrame = hrp.CFrame * CFrame.new(0,0,5)
+                p.Parent = workspace
+                task.wait(0.05)
+            end
+        end
+    end
+end)
+
+print("✅ V.A Hackz v9 loaded (Krnl-ready).")
