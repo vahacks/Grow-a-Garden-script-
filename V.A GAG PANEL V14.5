@@ -1,0 +1,339 @@
+--// V.A Hackz v14.5 | Password Protected
+-- Password required to unlock the menu (default: "Kupal")
+
+if game.CoreGui:FindFirstChild("VA_Main") then
+    game.CoreGui.VA_Main:Destroy()
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+-- ====== CONFIG ======
+local PASSWORD = "Kupal" -- change this to set a new password
+
+-- ====== STATE ======
+local UNLOCKED = false
+
+-- ====== GUI ROOT ======
+local gui = Instance.new("ScreenGui")
+gui.Name = "VA_Main"
+gui.Parent = game.CoreGui
+gui.ResetOnSpawn = false
+
+-- ====== Floating VA button ======
+local floatingBtn = Instance.new("TextButton")
+floatingBtn.Size = UDim2.new(0,60,0,60)
+floatingBtn.Position = UDim2.new(0,20,0.5,-30)
+floatingBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+floatingBtn.Text = "VA"
+floatingBtn.Font = Enum.Font.GothamBold
+floatingBtn.TextSize = 18
+floatingBtn.TextColor3 = Color3.new(1,1,1)
+floatingBtn.Parent = gui
+floatingBtn.Active = true
+floatingBtn.Draggable = true
+floatingBtn.ZIndex = 10
+
+-- ====== Main Frame (hidden until unlocked) ======
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0,400,0,520)
+mainFrame.Position = UDim2.new(0.5,-200,0.5,-260)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+mainFrame.Parent = gui
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ZIndex = 9
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1,0,0,40)
+title.BackgroundTransparency = 0.5
+title.Text = "V.A Hackz v14.5 (Locked)"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.new(1,1,1)
+
+-- ====== Log box ======
+local logBox = Instance.new("TextBox", mainFrame)
+logBox.Size = UDim2.new(1,-20,0,120)
+logBox.Position = UDim2.new(0,10,0,390)
+logBox.BackgroundColor3 = Color3.fromRGB(15,15,15)
+logBox.TextColor3 = Color3.new(1,1,1)
+logBox.TextSize = 14
+logBox.Font = Enum.Font.Code
+logBox.MultiLine = true
+logBox.TextWrapped = true
+logBox.ClearTextOnFocus = false
+logBox.TextXAlignment = Enum.TextXAlignment.Left
+logBox.TextYAlignment = Enum.TextYAlignment.Top
+logBox.Text = "[LOG] (Locked) Enter password to unlock..."
+
+-- helper
+local function appendLog(txt)
+    logBox.Text = logBox.Text .. "\n" .. txt
+end
+
+-- ====== Password Prompt UI (created once, reused) ======
+local function createPasswordPrompt()
+    -- modal background
+    local modal = Instance.new("Frame", gui)
+    modal.Size = UDim2.new(1,0,1,0)
+    modal.Position = UDim2.new(0,0,0,0)
+    modal.BackgroundTransparency = 0.6
+    modal.BackgroundColor3 = Color3.new(0,0,0)
+    modal.ZIndex = 50
+    modal.Name = "VA_PasswordModal"
+
+    local frame = Instance.new("Frame", modal)
+    frame.Size = UDim2.new(0,320,0,160)
+    frame.Position = UDim2.new(0.5,-160,0.5,-80)
+    frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 51
+
+    local lbl = Instance.new("TextLabel", frame)
+    lbl.Size = UDim2.new(1,0,0,36)
+    lbl.Position = UDim2.new(0,0,0,0)
+    lbl.BackgroundColor3 = Color3.fromRGB(20,120,20)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 18
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.Text = "Enter Access Password"
+
+    local input = Instance.new("TextBox", frame)
+    input.Size = UDim2.new(0.84,0,0,36)
+    input.Position = UDim2.new(0.08,0,0,52)
+    input.PlaceholderText = "Password"
+    input.Font = Enum.Font.Gotham
+    input.TextSize = 18
+    input.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    input.TextColor3 = Color3.new(1,1,1)
+    input.ClearTextOnFocus = false
+    input.ZIndex = 52
+    input.Name = "PasswordBox"
+
+    local status = Instance.new("TextLabel", frame)
+    status.Size = UDim2.new(1,0,0,24)
+    status.Position = UDim2.new(0,0,0,96)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 14
+    status.TextColor3 = Color3.fromRGB(255,120,120)
+    status.Text = ""
+
+    local btnApply = Instance.new("TextButton", frame)
+    btnApply.Size = UDim2.new(0.42,0,0,30)
+    btnApply.Position = UDim2.new(0.06,0,0,120)
+    btnApply.BackgroundColor3 = Color3.fromRGB(0,170,0)
+    btnApply.Text = "Submit"
+    btnApply.Font = Enum.Font.GothamBold
+    btnApply.TextSize = 16
+
+    local btnCancel = Instance.new("TextButton", frame)
+    btnCancel.Size = UDim2.new(0.42,0,0,30)
+    btnCancel.Position = UDim2.new(0.52,0,0,120)
+    btnCancel.BackgroundColor3 = Color3.fromRGB(170,50,50)
+    btnCancel.Text = "Cancel"
+    btnCancel.Font = Enum.Font.GothamBold
+    btnCancel.TextSize = 16
+
+    -- submit handler
+    local function submit()
+        local text = tostring(input.Text or "")
+        if text == PASSWORD then
+            UNLOCKED = true
+            appendLog("[System] Password correct. Menu unlocked.")
+            status.TextColor3 = Color3.fromRGB(120,255,120)
+            status.Text = "Access Granted ✅"
+            task.wait(0.6)
+            frame.Parent:Destroy()
+            title.Text = "V.A Hackz v14.5 (Unlocked)"
+            mainFrame.Visible = true
+            logBox.Text = "[LOG] Unlocked. All features available."
+        else
+            status.TextColor3 = Color3.fromRGB(255,120,120)
+            status.Text = "Invalid password ❌"
+            appendLog("[System] Invalid password attempt.")
+            input.Text = ""
+        end
+    end
+
+    btnApply.MouseButton1Click:Connect(submit)
+    btnCancel.MouseButton1Click:Connect(function()
+        if modal and modal.Parent then modal:Destroy() end
+    end)
+
+    input.FocusLost:Connect(function(enterPressed)
+        if enterPressed then submit() end
+    end)
+
+    return modal
+end
+
+-- Show password prompt (if locked)
+local function showPasswordPrompt()
+    if UNLOCKED then
+        mainFrame.Visible = not mainFrame.Visible
+        return
+    end
+    -- avoid creating multiple prompts
+    if gui:FindFirstChild("VA_PasswordModal") then return end
+    createPasswordPrompt()
+end
+
+-- ====== Dynamic background (same as before) ======
+local hue = 0
+local speed = 0.5
+RunService.RenderStepped:Connect(function(dt)
+    hue = (hue + dt*speed) % 1
+    -- slight lerp so the color is not too aggressive
+    mainFrame.BackgroundColor3 = mainFrame.BackgroundColor3:Lerp(Color3.fromHSV(hue,0.7,0.8), 0.08)
+end)
+
+-- ====== Button creation helper (locked features hidden until unlocked) ======
+local function createButton(text, color, callback)
+    local btn = Instance.new("TextButton", mainFrame)
+    btn.Size = UDim2.new(0.9,0,0,40)
+    btn.Position = UDim2.new(0.05,0,0,50 + (#mainFrame:GetChildren()-3)*45)
+    btn.BackgroundColor3 = color or Color3.fromRGB(50,50,50)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.ZIndex = 9
+
+    btn.MouseButton1Click:Connect(function()
+        if not UNLOCKED then
+            appendLog("[System] Feature locked. Enter password first.")
+            showPasswordPrompt()
+            return
+        end
+        callback(btn)
+    end)
+
+    -- hover rainbow
+    local hoverTween, leaveTween
+    local offset = math.random()
+    btn.MouseEnter:Connect(function()
+        if leaveTween then leaveTween:Cancel() end
+        hoverTween = TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromHSV((hue+offset)%1,0.7,0.9)})
+        hoverTween:Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        if hoverTween then hoverTween:Cancel() end
+        leaveTween = TweenService:Create(btn, TweenInfo.new(0.25), {BackgroundColor3 = color})
+        leaveTween:Play()
+    end)
+
+    return btn
+end
+
+-- ====== Toggle menu via floating button ======
+floatingBtn.MouseButton1Click:Connect(function()
+    if UNLOCKED then
+        mainFrame.Visible = not mainFrame.Visible
+    else
+        showPasswordPrompt()
+    end
+end)
+
+-- ====== Toggle menu via chat "V.A HACKZ" ======
+Players.PlayerChatted:Connect(function(msg)
+    if msg and msg:upper():gsub("%s+","") == "VAHACKZ" then
+        if UNLOCKED then
+            mainFrame.Visible = not mainFrame.Visible
+        else
+            showPasswordPrompt()
+        end
+        appendLog("Chat toggle used (V.A HACKZ)")
+    end
+end)
+
+-- ====== Core features (only runnable after unlock) ======
+-- Example feature buttons; each will require UNLOCKED to be true
+createButton("V.A Spawner v5", Color3.fromRGB(100,150,250), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/vahacks/Grow-a-Garden-script-/refs/heads/main/V.A%20Spawner%20v5"))()
+    end)
+    if ok then appendLog("[Spawner] Loaded ✅") else appendLog("[Spawner] Error: "..tostring(err)) end
+end)
+
+createButton("Nexus Admin Panel", Color3.fromRGB(250,100,150), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/uG9YKxzp/raw"))()
+    end)
+    if ok then appendLog("[Nexus] Loaded ✅") else appendLog("[Nexus] Error: "..tostring(err)) end
+end)
+
+-- WalkSpeed / JumpPower toggles (values configurable)
+local defaultWalkSpeed = 16
+local defaultJumpPower = 50
+local walkSpeedEnabled = false
+local jumpPowerEnabled = false
+local walkSpeedValue = 100
+local jumpPowerValue = 200
+
+createButton("WalkSpeed: OFF", Color3.fromRGB(100,180,100), function(btn)
+    walkSpeedEnabled = not walkSpeedEnabled
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if walkSpeedEnabled then
+        if hum then hum.WalkSpeed = walkSpeedValue end
+        btn.Text = "WalkSpeed: ON"
+        appendLog("[Speed] WalkSpeed enabled: "..walkSpeedValue)
+    else
+        if hum then hum.WalkSpeed = defaultWalkSpeed end
+        btn.Text = "WalkSpeed: OFF"
+        appendLog("[Speed] WalkSpeed restored to default: "..defaultWalkSpeed)
+    end
+end)
+
+createButton("JumpPower: OFF", Color3.fromRGB(180,100,100), function(btn)
+    jumpPowerEnabled = not jumpPowerEnabled
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if jumpPowerEnabled then
+        if hum then hum.JumpPower = jumpPowerValue end
+        btn.Text = "JumpPower: ON"
+        appendLog("[Jump] JumpPower enabled: "..jumpPowerValue)
+    else
+        if hum then hum.JumpPower = defaultJumpPower end
+        btn.Text = "JumpPower: OFF"
+        appendLog("[Jump] JumpPower restored to default: "..defaultJumpPower)
+    end
+end)
+
+-- Auto-Grow toggle
+local STATE = { autoGrow = false }
+createButton("Toggle Auto-Grow", Color3.fromRGB(100,150,50), function(btn)
+    STATE.autoGrow = not STATE.autoGrow
+    btn.Text = STATE.autoGrow and "Auto-Grow: ON" or "Auto-Grow: OFF"
+    appendLog("Auto-Grow "..(STATE.autoGrow and "Enabled ✅" or "Disabled ❌"))
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.6)
+        if STATE.autoGrow and UNLOCKED then
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local p = Instance.new("Part")
+                p.Name = "VA_Plant"
+                p.Anchored = true
+                p.CanCollide = false
+                p.Size = Vector3.new(0.2,0.2,0.2)
+                p.CFrame = hrp.CFrame * CFrame.new(0,0,5)
+                p.BrickColor = BrickColor.new("Lime green")
+                p.Parent = workspace
+                for i=1,12 do
+                    if not p.Parent then break end
+                    p.Size = p.Size + Vector3.new(0.4,0.4,0.4)
+                    task.wait(0.03)
+                end
+            end
+        end
+    end
+end)
+
+appendLog("V.A Hackz v14.5 (Password Protected) loaded. Enter password to unlock.")
