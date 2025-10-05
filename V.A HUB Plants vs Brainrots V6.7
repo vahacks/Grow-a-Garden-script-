@@ -1,0 +1,263 @@
+--// V.A Hackz Style Script | KRNL-ready | Password Protected
+-- All requested external loaders included
+
+if game.CoreGui:FindFirstChild("VA_Main") then
+    game.CoreGui.VA_Main:Destroy()
+end
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+
+if not player then
+    warn("[VA Hackz] LocalPlayer is nil. Run as local script (KRNL).")
+    return
+end
+
+-- CONFIG
+local VERSION = "v15.0"
+local PASSWORD = "Follow"
+local UNLOCKED = false
+local COUNTER_NAMESPACE = "va-hackz"
+local COUNTER_KEY = "v15_0"
+local FEEDBACK_LINK = "https://www.facebook.com/ryan.tanala.337976"
+
+-- GUI ROOT
+local gui = Instance.new("ScreenGui")
+gui.Name = "VA_Main"
+gui.ResetOnSpawn = false
+local playerGui = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui",5)
+if playerGui then gui.Parent = playerGui else pcall(function() gui.Parent = game.CoreGui end) end
+
+-- FLOATING BUTTON
+local floatingBtn = Instance.new("TextButton")
+floatingBtn.Size = UDim2.new(0,64,0,64)
+floatingBtn.Position = UDim2.new(0,18,0.5,-32)
+floatingBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+floatingBtn.Text = "V.A"
+floatingBtn.Font = Enum.Font.GothamBold
+floatingBtn.TextSize = 20
+floatingBtn.TextScaled = true
+floatingBtn.TextColor3 = Color3.new(1,1,1)
+floatingBtn.Parent = gui
+floatingBtn.Active = true
+floatingBtn.Draggable = true
+floatingBtn.ZIndex = 10
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0.5,0)
+corner.Parent = floatingBtn
+
+-- MAIN FRAME
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0,460,0,700)
+mainFrame.Position = UDim2.new(0.5,-230,0.5,-350)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+mainFrame.Parent = gui
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ZIndex = 9
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1,0,0,44)
+title.Position = UDim2.new(0,0,0,0)
+title.BackgroundTransparency = 0.2
+title.Text = "V.A Hackz "..VERSION.." (Locked)"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundColor3 = Color3.fromRGB(18,18,18)
+
+-- USERS COUNTER
+local usersLabel = Instance.new("TextLabel", mainFrame)
+usersLabel.Size = UDim2.new(0.46,0,0,30)
+usersLabel.Position = UDim2.new(0.02,0,0,52)
+usersLabel.BackgroundTransparency = 1
+usersLabel.Font = Enum.Font.Gotham
+usersLabel.TextSize = 16
+usersLabel.TextColor3 = Color3.new(1,1,1)
+usersLabel.Text = "Users: --"
+
+-- LOG BOX
+local logBox = Instance.new("TextBox", mainFrame)
+logBox.Size = UDim2.new(1,-24,0,200)
+logBox.Position = UDim2.new(0,12,0,480)
+logBox.BackgroundColor3 = Color3.fromRGB(12,12,12)
+logBox.TextColor3 = Color3.new(1,1,1)
+logBox.TextSize = 14
+logBox.Font = Enum.Font.Code
+logBox.MultiLine = true
+logBox.TextWrapped = true
+logBox.ClearTextOnFocus = false
+logBox.TextXAlignment = Enum.TextXAlignment.Left
+logBox.TextYAlignment = Enum.TextYAlignment.Top
+logBox.Text = "[LOG] (Locked) Enter password to unlock..."
+logBox.ZIndex = 9
+logBox.TextEditable = false
+
+local function appendLog(txt)
+    if not logBox or not logBox.Parent then
+        warn("[VA] "..tostring(txt))
+        return
+    end
+    logBox.Text = logBox.Text .. "\n" .. tostring(txt)
+end
+
+-- PASSWORD MODAL
+local function createPasswordPrompt()
+    if gui:FindFirstChild("VA_PasswordModal") then return end
+    local modal = Instance.new("Frame", gui)
+    modal.Size = UDim2.new(1,0,1,0)
+    modal.Position = UDim2.new(0,0,0,0)
+    modal.BackgroundTransparency = 0.6
+    modal.BackgroundColor3 = Color3.new(0,0,0)
+    modal.ZIndex = 50
+    modal.Name = "VA_PasswordModal"
+
+    local frame = Instance.new("Frame", modal)
+    frame.Size = UDim2.new(0,360,0,180)
+    frame.Position = UDim2.new(0.5,-180,0.5,-90)
+    frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 51
+
+    local lbl = Instance.new("TextLabel", frame)
+    lbl.Size = UDim2.new(1,0,0,44)
+    lbl.Position = UDim2.new(0,0,0,0)
+    lbl.BackgroundColor3 = Color3.fromRGB(20,120,20)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 18
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.Text = "Enter Access Password"
+
+    local input = Instance.new("TextBox", frame)
+    input.Size = UDim2.new(0.84,0,0,40)
+    input.Position = UDim2.new(0.08,0,0,56)
+    input.PlaceholderText = "Password"
+    input.Font = Enum.Font.Gotham
+    input.TextSize = 18
+    input.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    input.TextColor3 = Color3.new(1,1,1)
+    input.ClearTextOnFocus = false
+    input.ZIndex = 52
+    input.Name = "PasswordBox"
+
+    local status = Instance.new("TextLabel", frame)
+    status.Size = UDim2.new(1,0,0,24)
+    status.Position = UDim2.new(0,0,0,104)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 14
+    status.TextColor3 = Color3.fromRGB(255,120,120)
+    status.Text = ""
+
+    local btnApply = Instance.new("TextButton", frame)
+    btnApply.Size = UDim2.new(0.42,0,0,36)
+    btnApply.Position = UDim2.new(0.06,0,0,130)
+    btnApply.BackgroundColor3 = Color3.fromRGB(0,170,0)
+    btnApply.Text = "Submit"
+    btnApply.Font = Enum.Font.GothamBold
+    btnApply.TextSize = 16
+
+    local btnCancel = Instance.new("TextButton", frame)
+    btnCancel.Size = UDim2.new(0.42,0,0,36)
+    btnCancel.Position = UDim2.new(0.52,0,0,130)
+    btnCancel.BackgroundColor3 = Color3.fromRGB(170,50,50)
+    btnCancel.Text = "Cancel"
+    btnCancel.Font = Enum.Font.GothamBold
+    btnCancel.TextSize = 16
+
+    local function submit()
+        local text = tostring(input.Text or "")
+        if text == PASSWORD then
+            UNLOCKED = true
+            appendLog("[System] Password correct. Menu unlocked.")
+            status.TextColor3 = Color3.fromRGB(120,255,120)
+            status.Text = "Access Granted ✅"
+            task.wait(0.6)
+            if frame and frame.Parent then frame.Parent:Destroy() end
+            title.Text = "V.A Hackz "..VERSION.." (Unlocked)"
+            mainFrame.Visible = true
+            logBox.Text = "[LOG] Unlocked. All features available."
+        else
+            status.TextColor3 = Color3.fromRGB(255,120,120)
+            status.Text = "Invalid password ❌"
+            appendLog("[System] Invalid password attempt.")
+            input.Text = ""
+        end
+    end
+
+    btnApply.MouseButton1Click:Connect(submit)
+    btnCancel.MouseButton1Click:Connect(function() if modal and modal.Parent then modal:Destroy() end end)
+    input.FocusLost:Connect(function(enterPressed) if enterPressed then submit() end end)
+end
+
+local function showPasswordPrompt()
+    if UNLOCKED then
+        mainFrame.Visible = not mainFrame.Visible
+        return
+    end
+    if gui:FindFirstChild("VA_PasswordModal") then return end
+    createPasswordPrompt()
+end
+
+-- BUTTON CREATION HELPER
+local buttonCounter = 0
+local function createButton(text, color, callback)
+    buttonCounter = buttonCounter + 1
+    local btn = Instance.new("TextButton", mainFrame)
+    btn.Size = UDim2.new(0.9,0,0,40)
+    btn.Position = UDim2.new(0.05,0,0,120 + (buttonCounter-1)*48)
+    btn.BackgroundColor3 = color or Color3.fromRGB(50,50,50)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.ZIndex = 9
+
+    btn.MouseButton1Click:Connect(function()
+        if not UNLOCKED then
+            appendLog("[System] Feature locked. Enter password first.")
+            showPasswordPrompt()
+            return
+        end
+        local s, e = pcall(function() callback(btn) end)
+        if not s then appendLog("[Error] Callback error: "..tostring(e)) end
+    end)
+
+    return btn
+end
+
+-- MENU TOGGLE
+floatingBtn.MouseButton1Click:Connect(function()
+    if UNLOCKED then mainFrame.Visible = not mainFrame.Visible else showPasswordPrompt() end
+end)
+
+-- ===== EXTERNAL LOADERS =====
+local loaders = {
+    {"V.A Spawner plants v5", "https://raw.githubusercontent.com/makagago11/Plantvsbrainrot/refs/heads/main/PvbDUPE", Color3.fromRGB(100,150,250)},
+    {"Dupe Script v5", "https://raw.githubusercontent.com/MoziIOnTop/MoziIHub/refs/heads/main/PlantsVsBrainrots", Color3.fromRGB(120,200,220)},
+    {"ZysumeHub Update", "https://raw.githubusercontent.com/ZusumeHub/ZusumeHub/refs/heads/main/UpdateZysumee", Color3.fromRGB(140,180,220)}
+}
+
+for _, info in ipairs(loaders) do
+    local name, url, color = info[1], info[2], info[3]
+    createButton(name, color, function()
+        appendLog("["..name.."] Attempting to load...")
+        local ok, err = pcall(function()
+            local content = game:HttpGet(url)
+            if not content or content == "" then error("Empty response from "..url) end
+            loadstring(content)()
+        end)
+        if ok then
+            appendLog("["..name.."] Loaded ✅")
+        else
+            appendLog("["..name.."] Error: "..tostring(err))
+        end
+    end)
+end
+
+appendLog("V.A Hackz "..VERSION.." loaded. Enter password to unlock.")
