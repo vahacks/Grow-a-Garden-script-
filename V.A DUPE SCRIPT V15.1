@@ -1,0 +1,439 @@
+--// V.A DUPE SCRIPT v15.2 | KRNL-ready | Fully Updated
+
+if game.CoreGui:FindFirstChild("V.A DUPE SCRIPT v15.2") then
+    game.CoreGui["V.A DUPE SCRIPT v15.2"]:Destroy()
+end
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+if not player then
+    warn("[V.A DUPE SCRIPT v15.2] LocalPlayer is nil. Run as local script (KRNL).")
+    return
+end
+
+-- CONFIG
+local VERSION = "V.A DUPE SCRIPT v15.2"
+local PASSWORD = "V.AHUBV15"
+local UNLOCKED = false
+local UPDATE_URL = "https://raw.githubusercontent.com/ShxDrag/Scripty/refs/heads/main/PvBDupe.lua" -- change if you host v15.2 elsewhere
+local AUTOLOAD_FIRST = true -- set false to disable auto-run of first loader
+
+-- GUI ROOT
+local gui = Instance.new("ScreenGui")
+gui.Name = VERSION
+gui.ResetOnSpawn = false
+local playerGui = player:FindFirstChild("PlayerGui")
+if playerGui then
+    gui.Parent = playerGui
+else
+    pcall(function() gui.Parent = game.CoreGui end)
+end
+
+-- FLOATING MINI BUTTON (V.A)
+local floatingBtn = Instance.new("TextButton")
+floatingBtn.Size = UDim2.new(0,64,0,64)
+floatingBtn.Position = UDim2.new(0,18,0.5,-32)
+floatingBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+floatingBtn.Text = "V.A"
+floatingBtn.Font = Enum.Font.GothamBold
+floatingBtn.TextSize = 18
+floatingBtn.TextScaled = true
+floatingBtn.TextColor3 = Color3.new(1,1,1)
+floatingBtn.Parent = gui
+floatingBtn.Active = true
+floatingBtn.Draggable = true
+floatingBtn.ZIndex = 10
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0.5,0)
+corner.Parent = floatingBtn
+
+-- MAIN FRAME
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0,460,0,700)
+mainFrame.Position = UDim2.new(0.5,-230,0.5,-350)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+mainFrame.Parent = gui
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ZIndex = 9
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1,0,0,44)
+title.Position = UDim2.new(0,0,0,0)
+title.BackgroundTransparency = 0.2
+title.Text = VERSION.." (Locked)"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundColor3 = Color3.fromRGB(18,18,18)
+title.ZIndex = 9
+
+-- LOG BOX
+local logBox = Instance.new("TextBox", mainFrame)
+logBox.Size = UDim2.new(1,-24,0,200)
+logBox.Position = UDim2.new(0,12,0,480)
+logBox.BackgroundColor3 = Color3.fromRGB(12,12,12)
+logBox.TextColor3 = Color3.new(1,1,1)
+logBox.TextSize = 14
+logBox.Font = Enum.Font.Code
+logBox.MultiLine = true
+logBox.TextWrapped = true
+logBox.ClearTextOnFocus = false
+logBox.TextXAlignment = Enum.TextXAlignment.Left
+logBox.TextYAlignment = Enum.TextYAlignment.Top
+logBox.Text = "[LOG] (Locked) Enter password to unlock..."
+logBox.ZIndex = 9
+logBox.TextEditable = false
+
+local function appendLog(txt)
+    if logBox and logBox.Parent then
+        logBox.Text = logBox.Text .. "\n" .. tostring(txt)
+    else
+        warn("[V.A DUPE SCRIPT] "..tostring(txt))
+    end
+end
+
+-- PASSWORD MODAL
+local function createPasswordPrompt()
+    if gui:FindFirstChild("VA_PasswordModal") then return end
+    local modal = Instance.new("Frame", gui)
+    modal.Name = "VA_PasswordModal"
+    modal.Size = UDim2.new(1,0,1,0)
+    modal.Position = UDim2.new(0,0,0,0)
+    modal.BackgroundTransparency = 0.6
+    modal.BackgroundColor3 = Color3.new(0,0,0)
+    modal.ZIndex = 50
+
+    local frame = Instance.new("Frame", modal)
+    frame.Size = UDim2.new(0,360,0,180)
+    frame.Position = UDim2.new(0.5,-180,0.5,-90)
+    frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 51
+
+    local lbl = Instance.new("TextLabel", frame)
+    lbl.Size = UDim2.new(1,0,0,44)
+    lbl.Position = UDim2.new(0,0,0,0)
+    lbl.BackgroundColor3 = Color3.fromRGB(20,120,20)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 18
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.Text = "Enter Access Password"
+
+    local input = Instance.new("TextBox", frame)
+    input.Size = UDim2.new(0.84,0,0,40)
+    input.Position = UDim2.new(0.08,0,0,56)
+    input.PlaceholderText = "Password"
+    input.Font = Enum.Font.Gotham
+    input.TextSize = 18
+    input.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    input.TextColor3 = Color3.new(1,1,1)
+    input.ClearTextOnFocus = false
+    input.ZIndex = 52
+    input.Name = "PasswordBox"
+
+    local status = Instance.new("TextLabel", frame)
+    status.Size = UDim2.new(1,0,0,24)
+    status.Position = UDim2.new(0,0,0,104)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 14
+    status.TextColor3 = Color3.fromRGB(255,120,120)
+    status.Text = ""
+
+    local btnApply = Instance.new("TextButton", frame)
+    btnApply.Size = UDim2.new(0.42,0,0,36)
+    btnApply.Position = UDim2.new(0.06,0,0,130)
+    btnApply.BackgroundColor3 = Color3.fromRGB(0,170,0)
+    btnApply.Text = "Submit"
+    btnApply.Font = Enum.Font.GothamBold
+    btnApply.TextSize = 16
+
+    local btnCancel = Instance.new("TextButton", frame)
+    btnCancel.Size = UDim2.new(0.42,0,0,36)
+    btnCancel.Position = UDim2.new(0.52,0,0,130)
+    btnCancel.BackgroundColor3 = Color3.fromRGB(170,50,50)
+    btnCancel.Text = "Cancel"
+    btnCancel.Font = Enum.Font.GothamBold
+    btnCancel.TextSize = 16
+
+    local function submit()
+        local text = tostring(input.Text or "")
+        if text == PASSWORD then
+            UNLOCKED = true
+            appendLog("[System] Password correct. Menu unlocked.")
+            status.TextColor3 = Color3.fromRGB(120,255,120)
+            status.Text = "Access Granted ✅"
+            task.wait(0.6)
+            if frame and frame.Parent then frame.Parent:Destroy() end
+            title.Text = VERSION.." (Unlocked)"
+            mainFrame.Visible = true
+            logBox.Text = "[LOG] Unlocked. All features available."
+        else
+            status.TextColor3 = Color3.fromRGB(255,120,120)
+            status.Text = "Invalid password ❌"
+            appendLog("[System] Invalid password attempt.")
+            input.Text = ""
+        end
+    end
+
+    btnApply.MouseButton1Click:Connect(submit)
+    btnCancel.MouseButton1Click:Connect(function() if modal and modal.Parent then modal:Destroy() end end)
+    input.FocusLost:Connect(function(enterPressed) if enterPressed then submit() end end)
+end
+
+local function showPasswordPrompt()
+    if UNLOCKED then
+        mainFrame.Visible = not mainFrame.Visible
+        return
+    end
+    if gui:FindFirstChild("VA_PasswordModal") then return end
+    createPasswordPrompt()
+end
+
+-- BUTTON CREATION HELPER (keeps track of vertical spacing)
+local buttonCounter = 0
+local function createButton(text, color, callback)
+    buttonCounter = buttonCounter + 1
+    local btn = Instance.new("TextButton", mainFrame)
+    btn.Size = UDim2.new(0.9,0,0,40)
+    btn.Position = UDim2.new(0.05,0,0,120 + (buttonCounter-1)*48)
+    btn.BackgroundColor3 = color or Color3.fromRGB(50,50,50)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.ZIndex = 9
+
+    btn.MouseButton1Click:Connect(function()
+        if not UNLOCKED then
+            appendLog("[System] Feature locked. Enter password first.")
+            showPasswordPrompt()
+            return
+        end
+        local s, e = pcall(function() callback(btn) end)
+        if not s then appendLog("[Error] Callback error: "..tostring(e)) end
+    end)
+
+    return btn
+end
+
+-- MENU TOGGLE
+floatingBtn.MouseButton1Click:Connect(function()
+    if UNLOCKED then mainFrame.Visible = not mainFrame.Visible else showPasswordPrompt() end
+end)
+
+-- ===== LOADERS =====
+local loaders = {
+    {"Dupe Script2 v5", "https://raw.githubusercontent.com/ShxDrag/Scripty/refs/heads/main/PvBDupe.lua", Color3.fromRGB(120,200,220)},
+    {"DUPE SCRIPT V5", "https://raw.githubusercontent.com/MoziIOnTop/MoziIHub/refs/heads/main/PlantsVsBrainrots", Color3.fromRGB(100,180,250)}
+}
+
+for _, info in ipairs(loaders) do
+    local name, url, color = info[1], info[2], info[3]
+    createButton(name, color, function()
+        appendLog("["..name.."] Attempting to load...")
+        local ok, err = pcall(function()
+            local content = game:HttpGet(url)
+            if not content or content == "" then error("Empty response from "..url) end
+            loadstring(content)()
+        end)
+        if ok then
+            appendLog("["..name.."] Loaded ✅")
+        else
+            appendLog("["..name.."] Error: "..tostring(err))
+        end
+    end)
+end
+
+-- Auto-run first loader if enabled (safe pcall)
+if AUTOLOAD_FIRST and loaders[1] and loaders[1][2] then
+    pcall(function()
+        appendLog("[Auto] Running first loader...")
+        local ok, err = pcall(function()
+            local code = game:HttpGet(loaders[1][2])
+            if code and code ~= "" then
+                loadstring(code)()
+            else
+                error("Empty response")
+            end
+        end)
+        if ok then appendLog("[Auto] First loader executed.") else appendLog("[Auto] First loader error: "..tostring(err)) end
+    end)
+end
+
+-- ===== TOGGLEABLE FEATURES =====
+local featureStates = {AutoAttack=false, SpeedAttack=false, Invisible=false}
+local normalSpeed = 16
+local autoAttackConnection = nil
+local savedTransparency = {}
+
+-- Helper: get humanoid
+local function getHumanoid()
+    local c = player.Character
+    if not c then return nil end
+    return c:FindFirstChildOfClass("Humanoid")
+end
+
+-- Auto Attack Toggle
+createButton("Auto Attack ❌", Color3.fromRGB(255,150,50), function(btn)
+    featureStates.AutoAttack = not featureStates.AutoAttack
+    btn.Text = "Auto Attack "..(featureStates.AutoAttack and "✅" or "❌")
+    appendLog("[Auto Attack] "..(featureStates.AutoAttack and "Enabled" or "Disabled"))
+
+    if featureStates.AutoAttack then
+        if autoAttackConnection and autoAttackConnection.Connected then return end
+        autoAttackConnection = RunService.Heartbeat:Connect(function()
+            if not featureStates.AutoAttack then
+                if autoAttackConnection then autoAttackConnection:Disconnect() end
+                autoAttackConnection = nil
+                return
+            end
+            local char = player.Character
+            if not char then return end
+            local tool
+            for _, v in ipairs(char:GetChildren()) do
+                if v:IsA("Tool") then tool = v break end
+            end
+            if not tool then
+                local bp = player:FindFirstChildOfClass("Backpack")
+                if bp then
+                    for _, v in ipairs(bp:GetChildren()) do
+                        if v:IsA("Tool") then tool = v break end
+                    end
+                    if tool and char and char:FindFirstChildOfClass("Humanoid") then
+                        pcall(function() char:FindFirstChildOfClass("Humanoid"):EquipTool(tool) end)
+                    end
+                end
+            end
+            if tool then
+                pcall(function()
+                    if type(tool.Activate) == "function" then
+                        tool:Activate()
+                    end
+                end)
+            end
+        end)
+    else
+        if autoAttackConnection then
+            pcall(function() autoAttackConnection:Disconnect() end)
+            autoAttackConnection = nil
+        end
+    end
+end)
+
+-- Speed Attack Toggle
+createButton("Speed Attack ❌", Color3.fromRGB(50,200,50), function(btn)
+    featureStates.SpeedAttack = not featureStates.SpeedAttack
+    btn.Text = "Speed Attack "..(featureStates.SpeedAttack and "✅" or "❌")
+    local humanoid = getHumanoid()
+    if featureStates.SpeedAttack then
+        if humanoid then
+            normalSpeed = humanoid.WalkSpeed or 16
+            humanoid.WalkSpeed = 100
+            appendLog("[Speed Attack] Enabled (WalkSpeed = 100)")
+        else
+            appendLog("[Speed Attack] Error: Humanoid not found")
+            featureStates.SpeedAttack = false
+            btn.Text = "Speed Attack ❌"
+        end
+    else
+        if humanoid then
+            humanoid.WalkSpeed = normalSpeed or 16
+            appendLog("[Speed Attack] Disabled (WalkSpeed restored)")
+        else
+            appendLog("[Speed Attack] Disabled (humanoid missing)")
+        end
+    end
+end)
+
+-- Invisible Character Toggle
+createButton("Invisible Character ❌", Color3.fromRGB(150,50,200), function(btn)
+    featureStates.Invisible = not featureStates.Invisible
+    btn.Text = "Invisible Character "..(featureStates.Invisible and "✅" or "❌")
+    local char = player.Character
+    if not char then
+        appendLog("[Invisible] Error: Character not found")
+        featureStates.Invisible = false
+        btn.Text = "Invisible Character ❌"
+        return
+    end
+
+    if featureStates.Invisible then
+        savedTransparency = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                savedTransparency[part] = {Transparency = part.Transparency, CanCollide = part.CanCollide}
+                if part.Name ~= "HumanoidRootPart" then
+                    pcall(function()
+                        part.Transparency = 1
+                        part.CanCollide = false
+                    end)
+                end
+            elseif part:IsA("Decal") then
+                savedTransparency[part] = {Transparency = part.Transparency}
+                pcall(function() part.Transparency = 1 end)
+            end
+        end
+        appendLog("[Invisible] Enabled")
+    else
+        for part, props in pairs(savedTransparency) do
+            if typeof(part) == "Instance" and part.Parent then
+                pcall(function()
+                    if props.Transparency ~= nil then part.Transparency = props.Transparency end
+                    if props.CanCollide ~= nil and part:IsA("BasePart") then part.CanCollide = props.CanCollide end
+                end)
+            end
+        end
+        savedTransparency = {}
+        appendLog("[Invisible] Disabled")
+    end
+end)
+
+-- ===== UPDATE SCRIPT (safe reload) =====
+createButton("Update Script", Color3.fromRGB(100,150,250), function()
+    appendLog("[Update] Attempting to update script to "..VERSION.." ...")
+    local ok, err = pcall(function()
+        if gui and gui.Parent then
+            pcall(function() gui:Destroy() end)
+        end
+        local content = game:HttpGet(UPDATE_URL)
+        if not content or content == "" then error("Empty response from "..UPDATE_URL) end
+        loadstring(content)()
+    end)
+    if not ok then
+        warn("[Update] Error while updating: "..tostring(err))
+    end
+end)
+
+-- ===== CLEANUP / CHARACTER ADDED =====
+player.CharacterAdded:Connect(function(char)
+    task.delay(0.5, function()
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            if featureStates.SpeedAttack then
+                humanoid.WalkSpeed = 100
+            else
+                humanoid.WalkSpeed = normalSpeed or 16
+            end
+            if featureStates.Invisible then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        pcall(function()
+                            part.Transparency = 1
+                            part.CanCollide = false
+                        end)
+                    elseif part:IsA("Decal") then
+                        pcall(function() part.Transparency = 1 end)
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+appendLog(VERSION.." loaded. Enter password to unlock.")
